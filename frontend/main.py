@@ -1,5 +1,86 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
+import requests
+from frames.inicio import crear_inicio 
+def mostrar_inicio():
+
+    global contenedor
+
+    # Eliminar el login
+    login.destroy()
+
+    # Crear un contenedor que ocupe toda la ventana
+    contenedor = tk.Frame(
+        ventana,
+        bg="#eef1f5"
+    )
+
+    contenedor.pack(
+        fill="both",
+        expand=True
+    )
+
+    # Crear el frame de inicio
+    frame_inicio = crear_inicio(contenedor)
+
+    frame_inicio.pack(
+        fill="both",
+        expand=True
+    ) 
+def iniciar_sesion():
+
+    usuario = entrada_usuario.get()
+    contraseña = entrada_contraseña.get()
+
+    if usuario == "" or contraseña == "":
+        messagebox.showwarning(
+            "Campos vacíos",
+            "Ingrese usuario y contraseña."
+        )
+        return
+
+    datos = {
+        "nombre_usuario": usuario,
+        "contrasena": contraseña
+    }
+
+    try:
+
+        respuesta = requests.post(
+            "http://localhost:3000/api/login",
+            json=datos
+        )
+
+        if respuesta.status_code == 200:
+
+            messagebox.showinfo(
+                "Inicio de sesión",
+                "¡Bienvenido!"
+            )
+
+            # Acá podrías abrir la pantalla principal
+            mostrar_inicio()
+
+        elif respuesta.status_code == 401:
+
+            messagebox.showerror(
+                "Error",
+                "Usuario o contraseña incorrectos."
+            )
+
+        else:
+
+            messagebox.showerror(
+                "Error",
+                "Ocurrió un error al iniciar sesión."
+            )
+
+    except requests.exceptions.RequestException:
+
+        messagebox.showerror(
+            "Error",
+            "No se pudo conectar con el servidor."
+        ) 
 
 
 # -----------------------------
@@ -10,28 +91,6 @@ ventana.title("ProAConnect - Inicio de Sesión")
 ventana.geometry("1000x650")
 ventana.minsize(800, 550)
 ventana.configure(bg="#0d1728")
-
-
-# -----------------------------
-# Función para iniciar sesión
-# -----------------------------
-def iniciar_sesion():
-    usuario = entrada_usuario.get()
-    contraseña = entrada_contraseña.get()
-    rol = combo_rol.get()
-
-    if usuario == "" or contraseña == "":
-        messagebox.showwarning(
-            "Campos incompletos",
-            "Por favor, completá el usuario y la contraseña."
-        )
-        return
-
-    # Acá después podés agregar la validación real
-    messagebox.showinfo(
-        "Inicio de sesión",
-        f"Bienvenido/a\n\nUsuario: {usuario}\nRol: {rol}"
-    )
 
 
 # -----------------------------
