@@ -1,4 +1,4 @@
-```javascript
+
 const express = require('express');
 const pool = require('../bd/conexion');
 
@@ -211,4 +211,3 @@ router.delete('/:id', async (req, res) => {
 
 
 module.exports = router;
-```

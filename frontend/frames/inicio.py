@@ -1,6 +1,5 @@
 import tkinter as tk
-from tkinter import ttk
-
+from frames.asistencia import crear_asistencias
 
 def crear_inicio(parent):
 
@@ -32,6 +31,16 @@ def crear_inicio(parent):
         expand=True
     )
 
+    def abrir_asistencia():
+        vent = tk.Toplevel(frame)
+        vent.geometry("1000x650")
+        frame_asistencia=crear_asistencias(vent)
+        frame_asistencia.pack(
+            fill="both",
+            expand=True
+        )
+    abrir_asistencia()
+    
     # =========================================================
     # BARRA LATERAL
     # =========================================================
