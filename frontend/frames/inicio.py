@@ -1,5 +1,5 @@
 import tkinter as tk
-from frames.asistencia import crear_asistencias
+from frames.observaciones import crear_observaciones
 
 def crear_inicio(parent):
 
@@ -31,15 +31,15 @@ def crear_inicio(parent):
         expand=True
     )
 
-    def abrir_asistencia():
+    def abrir_observaciones():
         vent = tk.Toplevel(frame)
         vent.geometry("1000x650")
-        frame_asistencia=crear_asistencias(vent)
-        frame_asistencia.pack(
+        frame_observaciones=crear_observaciones(vent)
+        frame_observaciones.pack(
             fill="both",
             expand=True
         )
-    abrir_asistencia()
+    abrir_observaciones()
     
     # =========================================================
     # BARRA LATERAL
