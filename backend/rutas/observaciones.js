@@ -50,65 +50,105 @@ router.post('/', async (req, res) => {
     }
 });
 
-
-// ===============================
-// LEER TODAS LAS OBSERVACIONES
+// ============================================
+// LEER TODAS LAS OBSERVACIONES CON SUS RELACIONES
 // GET /observaciones
-// ===============================
+// ============================================
 router.get('/', async (req, res) => {
-
     try {
+        const [observaciones] = await pool.execute(`
+            SELECT
+                o.id_observacion,
+                o.fecha,
+                o.tipo,
+                o.descripcion,
+                o.requiere_seguimiento,
 
-        const [observaciones] = await pool.execute(
-            `SELECT * FROM observaciones`
-        );
+                -- Datos del estudiante
+                o.id_estudiante,
+                e.nombre AS nombre_estudiante,
+                e.apellido AS apellido_estudiante,
+                e.dni AS dni_estudiante,
+
+                -- Datos del docente
+                o.id_docente,
+                d.nombre AS nombre_docente,
+                d.apellido AS apellido_docente,
+                d.dni AS dni_docente
+
+            FROM observaciones o
+
+            LEFT JOIN estudiantes e
+                ON o.id_estudiante = e.id_estudiante
+
+            LEFT JOIN docentes d
+                ON o.id_docente = d.id_docente
+
+            ORDER BY o.id_observacion DESC
+        `);
 
         return res.status(200).json(observaciones);
 
     } catch (error) {
-
         return res.status(500).json({
             error: 'No se pudieron obtener las observaciones',
             detalle: error.message
         });
-
     }
 });
 
-
-// ===============================
-// LEER UNA OBSERVACIÓN POR ID
+// ============================================
+// LEER UNA OBSERVACIÓN POR ID CON SUS CLAVES FORÁNEAS
 // GET /observaciones/:id
-// ===============================
+// ============================================
 router.get('/:id', async (req, res) => {
-
     const { id } = req.params;
 
     try {
+        const [observaciones] = await pool.execute(`
+            SELECT
+                o.id_observacion,
+                o.fecha,
+                o.tipo,
+                o.descripcion,
+                o.requiere_seguimiento,
 
-        const [observaciones] = await pool.execute(
-            `SELECT * FROM observaciones
-             WHERE id_observacion = ?`,
-            [id]
-        );
+                -- Datos del estudiante
+                o.id_estudiante,
+                e.nombre AS nombre_estudiante,
+                e.apellido AS apellido_estudiante,
+                e.dni AS dni_estudiante,
+
+                -- Datos del docente
+                o.id_docente,
+                d.nombre AS nombre_docente,
+                d.apellido AS apellido_docente,
+                d.dni AS dni_docente
+
+            FROM observaciones o
+
+            LEFT JOIN estudiantes e
+                ON o.id_estudiante = e.id_estudiante
+
+            LEFT JOIN docentes d
+                ON o.id_docente = d.id_docente
+
+            WHERE o.id_observacion = ?
+        `, [id]);
 
         if (observaciones.length === 0) {
-
             return res.status(404).json({
                 error: 'Observación no encontrada'
             });
-
         }
 
         return res.status(200).json(observaciones[0]);
 
     } catch (error) {
-
         return res.status(500).json({
             error: 'No se pudo obtener la observación',
             detalle: error.message
         });
-
     }
 });
 

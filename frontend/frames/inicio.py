@@ -1,181 +1,136 @@
 import tkinter as tk
+from tkinter import messagebox
+
+from frames.estudiantes import crear_estudiantes
+from frames.asistencia import crear_asistencias
 from frames.observaciones import crear_observaciones
+from frames.docentes import crear_docentes
+
 
 def crear_inicio(parent):
-
-    # =========================================================
-    # COLORES
-    # =========================================================
+    # Colores generales
     COLOR_FONDO = "#F1F4F8"
-    COLOR_AZUL_OSCURO = "#0D1728"
+    COLOR_AZUL = "#1E4D8F"
+    COLOR_TURQUESA = "#20A4BD"
+    COLOR_BLANCO = "#FFFFFF"
+    COLOR_GRIS = "#65778C"
+
+    # Contenedor principal
+    frame = tk.Frame(parent, bg=COLOR_FONDO)
+    frame.pack(fill="both", expand=True)
+
+    # Barra lateral
+    sidebar = tk.Frame(frame, bg=COLOR_BLANCO, width=220)
+    sidebar.pack(side="left", fill="y")
+    sidebar.pack_propagate(False)
+
+    # Logo
+    logo_frame = tk.Frame(sidebar, bg=COLOR_BLANCO, height=85)
+    logo_frame.pack(fill="x")
+    logo_frame.pack_propagate(False)
+
+    tk.Label(
+        logo_frame, text="🌐", font=("Segoe UI Emoji", 22),
+        bg=COLOR_BLANCO, fg=COLOR_TURQUESA
+    ).pack(side="left", padx=(20, 7), pady=20)
+
+    tk.Label(
+        logo_frame, text="ProAConnect", font=("Segoe UI", 17, "bold"),
+        bg=COLOR_BLANCO, fg=COLOR_AZUL
+    ).pack(side="left", pady=20)
+
+    tk.Frame(sidebar, bg="#DDE4EC", height=1).pack(fill="x")
+
+    # Área donde se reemplazan las vistas
+    contenido = tk.Frame(frame, bg=COLOR_FONDO)
+    contenido.pack(side="left", fill="both", expand=True)
+
+    botones = {}
+
+    def mostrar_vista(nombre, funcion):
+        # Limpiar únicamente el contenido central
+        for widget in contenido.winfo_children():
+            widget.destroy()
+
+        # Cargar la vista seleccionada
+        try:
+            nueva_vista = funcion(contenido)
+            if nueva_vista is not None:
+                # Si la función devuelve un Frame que ya está empaquetado,
+                # se evita empaquetarlo una segunda vez.
+                if not nueva_vista.winfo_manager():
+                    nueva_vista.pack(fill="both", expand=True)
+        except Exception as error:
+            messagebox.showerror(
+                "Error al abrir la vista",
+                f"No se pudo abrir '{nombre}'.\n\nDetalle: {error}"
+            )
+            return
+
+        # Actualizar el estilo de los botones
+        for nombre_boton, boton in botones.items():
+            seleccionado = nombre_boton == nombre
+            boton.configure(
+                bg=COLOR_TURQUESA if seleccionado else COLOR_BLANCO,
+                fg="white" if seleccionado else COLOR_GRIS,
+                activebackground=COLOR_TURQUESA,
+                activeforeground="white"
+            )
+
+    def crear_boton(texto, icono, funcion):
+        boton = tk.Button(
+            sidebar,
+            text=f"{icono}   {texto}",
+            font=("Segoe UI", 11),
+            bg=COLOR_BLANCO,
+            fg=COLOR_GRIS,
+            activebackground=COLOR_TURQUESA,
+            activeforeground="white",
+            anchor="w",
+            relief="flat",
+            bd=0,
+            cursor="hand2",
+            padx=15,
+            pady=12,
+            command=lambda: mostrar_vista(texto, funcion)
+        )
+        boton.pack(fill="x", padx=10, pady=4)
+        botones[texto] = boton
+        return boton
+
+    # Botones conectados a sus respectivas vistas
+    crear_boton("Home", "⌂", crear_home)
+    crear_boton("Asistencia", "▣", crear_asistencias)
+    crear_boton("Alumnos", "♟", crear_estudiantes)
+    crear_boton("Docentes", "♟", crear_docentes)
+    crear_boton("Observaciones", "☷", crear_observaciones)
+    
+
+    # Vista inicial
+    mostrar_vista("Home", crear_home)
+
+    return frame
+
+
+def crear_home(parent):
+    # Colores usados en la pantalla Home
+    COLOR_FONDO = "#F1F4F8"
     COLOR_AZUL = "#1E4D8F"
     COLOR_TURQUESA = "#20A4BD"
     COLOR_BLANCO = "#FFFFFF"
     COLOR_TEXTO = "#19324D"
     COLOR_GRIS = "#65778C"
-    COLOR_GRIS_CLARO = "#E8EDF3"
     COLOR_VERDE = "#12B981"
     COLOR_ROJO = "#F0444F"
     COLOR_AMARILLO = "#F5A623"
 
-    # =========================================================
-    # FRAME PRINCIPAL
-    # =========================================================
-    frame = tk.Frame(
-        parent,
-        bg=COLOR_FONDO
-    )
-
-    frame.pack(
-        fill="both",
-        expand=True
-    )
-
-    def abrir_observaciones():
-        vent = tk.Toplevel(frame)
-        vent.geometry("1000x650")
-        frame_observaciones=crear_observaciones(vent)
-        frame_observaciones.pack(
-            fill="both",
-            expand=True
-        )
-    abrir_observaciones()
-    
-    # =========================================================
-    # BARRA LATERAL
-    # =========================================================
-    sidebar = tk.Frame(
-        frame,
-        bg=COLOR_BLANCO,
-        width=220
-    )
-
-    sidebar.pack(
-        side="left",
-        fill="y"
-    )
-
-    sidebar.pack_propagate(False)
-
-    # ---------------------------------------------------------
-    # LOGO
-    # ---------------------------------------------------------
-    logo_frame = tk.Frame(
-        sidebar,
-        bg=COLOR_BLANCO,
-        height=85
-    )
-
-    logo_frame.pack(
-        fill="x"
-    )
-
-    tk.Label(
-        logo_frame,
-        text="🌐",
-        font=("Segoe UI Emoji", 22),
-        bg=COLOR_BLANCO,
-        fg=COLOR_TURQUESA
-    ).pack(
-        side="left",
-        padx=(20, 7),
-        pady=25
-    )
-
-    tk.Label(
-        logo_frame,
-        text="ProAConnect",
-        font=("Segoe UI", 17, "bold"),
-        bg=COLOR_BLANCO,
-        fg=COLOR_AZUL
-    ).pack(
-        side="left",
-        pady=25
-    )
-
-    # ---------------------------------------------------------
-    # SEPARADOR
-    # ---------------------------------------------------------
-    tk.Frame(
-        sidebar,
-        bg="#DDE4EC",
-        height=1
-    ).pack(
-        fill="x"
-    )
-
-    # =========================================================
-    # MENÚ LATERAL
-    # =========================================================
-
-    def crear_item(texto, icono, seleccionado=False):
-
-        color_fondo = COLOR_TURQUESA if seleccionado else COLOR_BLANCO
-        color_texto = COLOR_BLANCO if seleccionado else COLOR_GRIS
-
-        item = tk.Frame(
-            sidebar,
-            bg=color_fondo,
-            height=45
-        )
-
-        item.pack(
-            fill="x",
-            padx=10,
-            pady=4
-        )
-
-        item.pack_propagate(False)
-
-        tk.Label(
-            item,
-            text=icono,
-            font=("Segoe UI Emoji", 14),
-            bg=color_fondo,
-            fg=color_texto,
-            width=3
-        ).pack(
-            side="left",
-            padx=(4, 0)
-        )
-
-        tk.Label(
-            item,
-            text=texto,
-            font=("Segoe UI", 11),
-            bg=color_fondo,
-            fg=color_texto,
-            anchor="w"
-        ).pack(
-            side="left"
-        )
-
-        return item
-
-    crear_item("Home", "⌂", True)
-    crear_item("Asistencia", "▣")
-    crear_item("Alumnos", "♟")
-    crear_item("Configuración", "⚙")
-
-    # =========================================================
-    # CONTENIDO PRINCIPAL
-    # =========================================================
-    contenido = tk.Frame(
-        frame,
-        bg=COLOR_FONDO
-    )
-
-    contenido.pack(
-        side="left",
-        fill="both",
-        expand=True
-    )
+    home = tk.Frame(parent, bg=COLOR_FONDO)
 
     # =========================================================
     # CABECERA
     # =========================================================
     header = tk.Frame(
-        contenido,
+        home,
         bg=COLOR_FONDO,
         height=75
     )
@@ -227,7 +182,7 @@ def crear_inicio(parent):
     # TARJETAS DE ESTADÍSTICAS
     # =========================================================
     estadisticas = tk.Frame(
-        contenido,
+        home,
         bg=COLOR_FONDO
     )
 
@@ -461,7 +416,7 @@ def crear_inicio(parent):
     # PANEL REGISTRO DE ASISTENCIA
     # =========================================================
     panel = tk.Frame(
-        contenido,
+        home,
         bg=COLOR_BLANCO,
         highlightbackground="#DDE4EC",
         highlightthickness=1
@@ -750,4 +705,6 @@ def crear_inicio(parent):
             fill="x"
         )
 
-    return frame
+    return home
+
+

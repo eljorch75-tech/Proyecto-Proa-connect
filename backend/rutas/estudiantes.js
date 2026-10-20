@@ -1,3 +1,4 @@
+
 const express = require('express');
 const pool = require('../bd/conexion');
 const router = express.Router();
@@ -14,14 +15,31 @@ router.post('/', async (req, res) => {
         fecha_nacimiento,
         nombre_tutor,
         telefono_tutor,
-        email_tutor
+        email_tutor,
+        id_curso
     } = req.body;
+
+    // Validar que se haya seleccionado un curso
+    if (id_curso === undefined || id_curso === null || id_curso === '') {
+        return res.status(400).json({
+            error: 'El curso es obligatorio'
+        });
+    }
 
     try {
         const [resultado] = await pool.execute(
             `INSERT INTO estudiantes
-            (nombre, apellido, dni, fecha_nacimiento, nombre_tutor, telefono_tutor, email_tutor)
-            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            (
+                nombre,
+                apellido,
+                dni,
+                fecha_nacimiento,
+                nombre_tutor,
+                telefono_tutor,
+                email_tutor,
+                id_curso
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 nombre,
                 apellido,
@@ -29,16 +47,24 @@ router.post('/', async (req, res) => {
                 fecha_nacimiento,
                 nombre_tutor,
                 telefono_tutor,
-                email_tutor
+                email_tutor,
+                id_curso
             ]
         );
 
         return res.status(201).json({
             mensaje: 'Estudiante agregado correctamente',
-            id: resultado.insertId
+            id: resultado.insertId,
+            id_curso: Number(id_curso)
         });
 
     } catch (error) {
+        if (error.code === 'ER_NO_REFERENCED_ROW_2') {
+            return res.status(400).json({
+                error: 'El curso seleccionado no existe'
+            });
+        }
+
         return res.status(500).json({
             error: 'No se pudo agregar el estudiante',
             detalle: error.message
@@ -54,7 +80,17 @@ router.post('/', async (req, res) => {
 router.get('/', async (req, res) => {
     try {
         const [estudiantes] = await pool.execute(
-            `SELECT * FROM estudiantes`
+            `SELECT
+                e.*,
+                c.nombre_curso,
+                c.anio,
+                c.division,
+                c.turno,
+                c.ciclo_lectivo
+             FROM estudiantes e
+             LEFT JOIN curso c
+                ON e.id_curso = c.id_curso
+             ORDER BY e.id_estudiante`
         );
 
         return res.status(200).json(estudiantes);
@@ -77,7 +113,17 @@ router.get('/:id', async (req, res) => {
 
     try {
         const [estudiantes] = await pool.execute(
-            `SELECT * FROM estudiantes WHERE id = ?`,
+            `SELECT
+                e.*,
+                c.nombre_curso,
+                c.anio,
+                c.division,
+                c.turno,
+                c.ciclo_lectivo
+             FROM estudiantes e
+             LEFT JOIN curso c
+                ON e.id_curso = c.id_curso
+             WHERE e.id_estudiante = ?`,
             [id]
         );
 
@@ -112,8 +158,15 @@ router.put('/:id', async (req, res) => {
         fecha_nacimiento,
         nombre_tutor,
         telefono_tutor,
-        email_tutor
+        email_tutor,
+        id_curso
     } = req.body;
+
+    if (id_curso === undefined || id_curso === null || id_curso === '') {
+        return res.status(400).json({
+            error: 'El curso es obligatorio'
+        });
+    }
 
     try {
         const [resultado] = await pool.execute(
@@ -124,8 +177,9 @@ router.put('/:id', async (req, res) => {
                  fecha_nacimiento = ?,
                  nombre_tutor = ?,
                  telefono_tutor = ?,
-                 email_tutor = ?
-             WHERE id = ?`,
+                 email_tutor = ?,
+                 id_curso = ?
+             WHERE id_estudiante = ?`,
             [
                 nombre,
                 apellido,
@@ -134,6 +188,7 @@ router.put('/:id', async (req, res) => {
                 nombre_tutor,
                 telefono_tutor,
                 email_tutor,
+                id_curso,
                 id
             ]
         );
@@ -149,6 +204,12 @@ router.put('/:id', async (req, res) => {
         });
 
     } catch (error) {
+        if (error.code === 'ER_NO_REFERENCED_ROW_2') {
+            return res.status(400).json({
+                error: 'El curso seleccionado no existe'
+            });
+        }
+
         return res.status(500).json({
             error: 'No se pudo actualizar el estudiante',
             detalle: error.message
@@ -166,7 +227,8 @@ router.delete('/:id', async (req, res) => {
 
     try {
         const [resultado] = await pool.execute(
-            `DELETE FROM estudiantes WHERE id = ?`,
+            `DELETE FROM estudiantes
+             WHERE id_estudiante = ?`,
             [id]
         );
 
@@ -181,12 +243,20 @@ router.delete('/:id', async (req, res) => {
         });
 
     } catch (error) {
+        if (
+            error.code === 'ER_ROW_IS_REFERENCED_2' ||
+            error.code === 'ER_ROW_IS_REFERENCED'
+        ) {
+            return res.status(409).json({
+                error: 'No se puede eliminar el estudiante porque tiene registros relacionados, por ejemplo, asistencias u observaciones.'
+            });
+        }
+
         return res.status(500).json({
             error: 'No se pudo eliminar el estudiante',
             detalle: error.message
         });
     }
 });
-
 
 module.exports = router;

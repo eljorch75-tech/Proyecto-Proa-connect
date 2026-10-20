@@ -8,10 +8,11 @@ import requests
 # CONFIGURACIÓN
 # ============================================================
 
-API_URL = "http://localhost:3000"
+API_URL = "http://localhost:3000/api"
 
 ESTUDIANTES_URL = f"{API_URL}/estudiantes"
-ASISTENCIAS_URL = f"{API_URL}/asistencias"
+ASISTENCIAS_URL = f"{API_URL}/asistencia"
+CURSOS_URL = f"{API_URL}/cursos"
 
                                                                                                                                                                                                                                                                                                                                                                                                                                                     
 # ============================================================
@@ -25,6 +26,7 @@ def crear_asistencias(parent):
     # ========================================================
 
     alumnos = []
+    cursos = []
     asistencias_existentes = {}
 
     filas = []
@@ -448,7 +450,8 @@ def crear_asistencias(parent):
 
         # Intentamos varios nombres posibles
         curso = (
-            alumno.get("curso")
+            alumno.get("nombre_curso")
+            or alumno.get("curso")
             or alumno.get("Curso")
             or alumno.get("division")
             or alumno.get("grado")
@@ -462,28 +465,50 @@ def crear_asistencias(parent):
     # --------------------------------------------------------
 
     def obtener_anio(curso):
-
+        """Obtiene un año mostrado a partir de un texto de curso (respaldo)."""
         texto = str(curso).lower()
 
-        if "1" in texto:
-            return "1° Año"
-
-        if "2" in texto:
-            return "2° Año"
-
-        if "3" in texto:
-            return "3° Año"
-
-        if "4" in texto:
-            return "4° Año"
-
-        if "5" in texto:
-            return "5° Año"
-
-        if "6" in texto:
-            return "6° Año"
+        for numero in range(1, 7):
+            if f"{numero}" in texto:
+                return f"{numero}° Año"
 
         return "Sin año"
+
+    # --------------------------------------------------------
+
+    def obtener_anio_alumno(alumno):
+        """Busca el año real del alumno usando id_curso y GET /api/cursos."""
+        id_curso = alumno.get("id_curso")
+
+        for curso in cursos:
+            if str(curso.get("id_curso")) == str(id_curso):
+                try:
+                    return int(curso.get("anio", 0))
+                except (TypeError, ValueError):
+                    return 0
+
+        # Respaldo si la API de estudiantes ya devuelve el año.
+        try:
+            if alumno.get("anio") is not None:
+                return int(alumno.get("anio"))
+        except (TypeError, ValueError):
+            pass
+
+        return 0
+
+    # --------------------------------------------------------
+
+    def cargar_cursos():
+        nonlocal cursos
+
+        respuesta = requests.get(CURSOS_URL, timeout=5)
+        respuesta.raise_for_status()
+        datos = respuesta.json()
+
+        if not isinstance(datos, list):
+            raise ValueError("La ruta de cursos debe devolver una lista JSON.")
+
+        cursos = datos
 
     # ========================================================
     # CARGAR ESTUDIANTES
@@ -511,8 +536,18 @@ def crear_asistencias(parent):
 
             alumnos = respuesta.json()
 
-            actualizar_filtro_anios()
+            # Primero se consultan los cursos para poder relacionarlos
+            # con cada estudiante mediante id_curso.
+            try:
+                cargar_cursos()
+            except (requests.exceptions.RequestException, ValueError) as error:
+                messagebox.showerror(
+                    "Error de cursos",
+                    f"No se pudieron cargar los cursos desde {CURSOS_URL}.\n\n{error}"
+                )
+                return
 
+            actualizar_filtro_anios()
             cargar_asistencias()
 
         except requests.exceptions.ConnectionError:
@@ -535,27 +570,22 @@ def crear_asistencias(parent):
     # ========================================================
 
     def actualizar_filtro_anios():
-
         anios = set()
 
-        for alumno in alumnos:
-
-            curso = obtener_curso(alumno)
-            anio = obtener_anio(curso)
-
-            if anio != "Sin año":
-                anios.add(anio)
+        for curso in cursos:
+            try:
+                anio = int(curso.get("anio"))
+                if anio > 0:
+                    anios.add(anio)
+            except (TypeError, ValueError):
+                continue
 
         valores = ["Todos los Años"]
-
-        for i in range(1, 7):
-
-            anio = f"{i}° Año"
-
-            if anio in anios:
-                valores.append(anio)
-
+        valores.extend(f"{anio}° Año" for anio in sorted(anios))
         combo_anio["values"] = valores
+
+        if anio_var.get() not in valores:
+            anio_var.set("Todos los Años")
 
     # ========================================================
     # CARGAR ASISTENCIAS
@@ -637,14 +667,11 @@ def crear_asistencias(parent):
         alumnos_filtrados = []
 
         for alumno in alumnos:
+            anio = obtener_anio_alumno(alumno)
 
-            curso = obtener_curso(alumno)
-            anio = obtener_anio(curso)
-
-            if (
-                filtro == "Todos los Años"
-                or anio == filtro
-            ):
+            if filtro == "Todos los Años":
+                alumnos_filtrados.append(alumno)
+            elif filtro == f"{anio}° Año":
                 alumnos_filtrados.append(alumno)
 
         for indice, alumno in enumerate(alumnos_filtrados):
@@ -666,6 +693,7 @@ def crear_asistencias(parent):
             return
 
         curso = obtener_curso(alumno)
+        anio_alumno = obtener_anio_alumno(alumno)
         nombre = obtener_nombre(alumno)
 
         fila = tk.Frame(
@@ -712,7 +740,7 @@ def crear_asistencias(parent):
 
         tk.Label(
             info,
-            text=f"{curso}  -  {obtener_anio(curso)}",
+            text=(f"{curso}  -  {anio_alumno}° Año" if anio_alumno else f"{curso}  -  Sin año"),
             font=("Segoe UI", 8),
             bg="white",
             fg="#8A9BB2"
