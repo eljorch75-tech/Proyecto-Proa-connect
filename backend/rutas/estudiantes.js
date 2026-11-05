@@ -1,12 +1,12 @@
-
 const express = require('express');
 const pool = require('../bd/conexion');
+
 const router = express.Router();
 
-// ===============================
-// AGREGAR UN ESTUDIANTE
-// POST /estudiantes
-// ===============================
+// =====================================
+// AGREGAR ESTUDIANTE
+// POST /api/estudiantes
+// =====================================
 router.post('/', async (req, res) => {
     const {
         nombre,
@@ -19,27 +19,18 @@ router.post('/', async (req, res) => {
         id_curso
     } = req.body;
 
-    // Validar que se haya seleccionado un curso
-    if (id_curso === undefined || id_curso === null || id_curso === '') {
+    if (!id_curso) {
         return res.status(400).json({
-            error: 'El curso es obligatorio'
+            error: 'Tenés que seleccionar un curso'
         });
     }
 
     try {
         const [resultado] = await pool.execute(
             `INSERT INTO estudiantes
-            (
-                nombre,
-                apellido,
-                dni,
-                fecha_nacimiento,
-                nombre_tutor,
-                telefono_tutor,
-                email_tutor,
-                id_curso
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            (nombre, apellido, dni, fecha_nacimiento,
+             nombre_tutor, telefono_tutor, email_tutor, id_curso)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 nombre,
                 apellido,
@@ -52,20 +43,15 @@ router.post('/', async (req, res) => {
             ]
         );
 
-        return res.status(201).json({
+        res.status(201).json({
             mensaje: 'Estudiante agregado correctamente',
-            id: resultado.insertId,
-            id_curso: Number(id_curso)
+            id: resultado.insertId
         });
 
     } catch (error) {
-        if (error.code === 'ER_NO_REFERENCED_ROW_2') {
-            return res.status(400).json({
-                error: 'El curso seleccionado no existe'
-            });
-        }
+        console.error('ERROR AL AGREGAR ESTUDIANTE:', error);
 
-        return res.status(500).json({
+        res.status(500).json({
             error: 'No se pudo agregar el estudiante',
             detalle: error.message
         });
@@ -73,10 +59,10 @@ router.post('/', async (req, res) => {
 });
 
 
-// ===============================
-// LEER TODOS LOS ESTUDIANTES
-// GET /estudiantes
-// ===============================
+// =====================================
+// LISTAR TODOS LOS ESTUDIANTES
+// GET /api/estudiantes
+// =====================================
 router.get('/', async (req, res) => {
     try {
         const [estudiantes] = await pool.execute(
@@ -89,14 +75,16 @@ router.get('/', async (req, res) => {
                 c.ciclo_lectivo
              FROM estudiantes e
              LEFT JOIN curso c
-                ON e.id_curso = c.id_curso
-             ORDER BY e.id_estudiante`
+             ON e.id_curso = c.id_curso
+             ORDER BY e.id_estudiante DESC`
         );
 
-        return res.status(200).json(estudiantes);
+        res.json(estudiantes);
 
     } catch (error) {
-        return res.status(500).json({
+        console.error('ERROR AL LISTAR ESTUDIANTES:', error);
+
+        res.status(500).json({
             error: 'No se pudieron obtener los estudiantes',
             detalle: error.message
         });
@@ -104,13 +92,11 @@ router.get('/', async (req, res) => {
 });
 
 
-// ===============================
-// LEER UN ESTUDIANTE POR ID
-// GET /estudiantes/:id
-// ===============================
+// =====================================
+// BUSCAR ESTUDIANTE POR ID
+// GET /api/estudiantes/:id
+// =====================================
 router.get('/:id', async (req, res) => {
-    const { id } = req.params;
-
     try {
         const [estudiantes] = await pool.execute(
             `SELECT
@@ -122,9 +108,9 @@ router.get('/:id', async (req, res) => {
                 c.ciclo_lectivo
              FROM estudiantes e
              LEFT JOIN curso c
-                ON e.id_curso = c.id_curso
+             ON e.id_curso = c.id_curso
              WHERE e.id_estudiante = ?`,
-            [id]
+            [req.params.id]
         );
 
         if (estudiantes.length === 0) {
@@ -133,10 +119,12 @@ router.get('/:id', async (req, res) => {
             });
         }
 
-        return res.status(200).json(estudiantes[0]);
+        res.json(estudiantes[0]);
 
     } catch (error) {
-        return res.status(500).json({
+        console.error('ERROR AL BUSCAR ESTUDIANTE:', error);
+
+        res.status(500).json({
             error: 'No se pudo obtener el estudiante',
             detalle: error.message
         });
@@ -144,13 +132,11 @@ router.get('/:id', async (req, res) => {
 });
 
 
-// ===============================
-// EDITAR UN ESTUDIANTE
-// PUT /estudiantes/:id
-// ===============================
+// =====================================
+// EDITAR ESTUDIANTE
+// PUT /api/estudiantes/:id
+// =====================================
 router.put('/:id', async (req, res) => {
-    const { id } = req.params;
-
     const {
         nombre,
         apellido,
@@ -162,23 +148,23 @@ router.put('/:id', async (req, res) => {
         id_curso
     } = req.body;
 
-    if (id_curso === undefined || id_curso === null || id_curso === '') {
+    if (!id_curso) {
         return res.status(400).json({
-            error: 'El curso es obligatorio'
+            error: 'Tenés que seleccionar un curso'
         });
     }
 
     try {
         const [resultado] = await pool.execute(
-            `UPDATE estudiantes
-             SET nombre = ?,
-                 apellido = ?,
-                 dni = ?,
-                 fecha_nacimiento = ?,
-                 nombre_tutor = ?,
-                 telefono_tutor = ?,
-                 email_tutor = ?,
-                 id_curso = ?
+            `UPDATE estudiantes SET
+                nombre = ?,
+                apellido = ?,
+                dni = ?,
+                fecha_nacimiento = ?,
+                nombre_tutor = ?,
+                telefono_tutor = ?,
+                email_tutor = ?,
+                id_curso = ?
              WHERE id_estudiante = ?`,
             [
                 nombre,
@@ -189,7 +175,7 @@ router.put('/:id', async (req, res) => {
                 telefono_tutor,
                 email_tutor,
                 id_curso,
-                id
+                req.params.id
             ]
         );
 
@@ -199,18 +185,14 @@ router.put('/:id', async (req, res) => {
             });
         }
 
-        return res.status(200).json({
+        res.json({
             mensaje: 'Estudiante actualizado correctamente'
         });
 
     } catch (error) {
-        if (error.code === 'ER_NO_REFERENCED_ROW_2') {
-            return res.status(400).json({
-                error: 'El curso seleccionado no existe'
-            });
-        }
+        console.error('ERROR AL EDITAR ESTUDIANTE:', error);
 
-        return res.status(500).json({
+        res.status(500).json({
             error: 'No se pudo actualizar el estudiante',
             detalle: error.message
         });
@@ -218,18 +200,16 @@ router.put('/:id', async (req, res) => {
 });
 
 
-// ===============================
-// ELIMINAR UN ESTUDIANTE
-// DELETE /estudiantes/:id
-// ===============================
+// =====================================
+// ELIMINAR ESTUDIANTE
+// DELETE /api/estudiantes/:id
+// =====================================
 router.delete('/:id', async (req, res) => {
-    const { id } = req.params;
-
     try {
         const [resultado] = await pool.execute(
             `DELETE FROM estudiantes
              WHERE id_estudiante = ?`,
-            [id]
+            [req.params.id]
         );
 
         if (resultado.affectedRows === 0) {
@@ -238,21 +218,14 @@ router.delete('/:id', async (req, res) => {
             });
         }
 
-        return res.status(200).json({
+        res.json({
             mensaje: 'Estudiante eliminado correctamente'
         });
 
     } catch (error) {
-        if (
-            error.code === 'ER_ROW_IS_REFERENCED_2' ||
-            error.code === 'ER_ROW_IS_REFERENCED'
-        ) {
-            return res.status(409).json({
-                error: 'No se puede eliminar el estudiante porque tiene registros relacionados, por ejemplo, asistencias u observaciones.'
-            });
-        }
+        console.error('ERROR AL ELIMINAR ESTUDIANTE:', error);
 
-        return res.status(500).json({
+        res.status(500).json({
             error: 'No se pudo eliminar el estudiante',
             detalle: error.message
         });

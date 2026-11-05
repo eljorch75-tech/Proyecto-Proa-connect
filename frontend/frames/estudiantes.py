@@ -2,603 +2,1498 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import requests
 
+
 # ============================================================
-# CONFIGURACIÓN DE API
+# CONFIGURACIÓN
 # ============================================================
+
 API_URL = "http://localhost:3000/api/estudiantes"
-API_CURSOS_URL = "http://localhost:3000/api/cursos"
-# Si tu backend registra la ruta como /api/curso (singular),
-# cambia API_CURSOS_URL por "http://localhost:3000/api/curso".
+CURSOS_URL = "http://localhost:3000/api/cursos"
+
 
 # ============================================================
 # COLORES
 # ============================================================
-COLOR_FONDO = "#F3F6F9"
-COLOR_AZUL = "#179DB8"
-COLOR_AZUL_HOVER = "#138BA4"
-COLOR_BLANCO = "#FFFFFF"
-COLOR_TEXTO = "#19304A"
-COLOR_GRIS = "#65758B"
-COLOR_VERDE = "#19B47A"
-COLOR_ROJO = "#F04B50"
-COLOR_AMARILLO = "#F2B134"
 
+COLOR_FONDO = "#F3F6FA"
+COLOR_AZUL = "#179FB8"
+COLOR_BLANCO = "#FFFFFF"
+COLOR_TEXTO = "#172B4D"
+COLOR_GRIS = "#65758B"
+COLOR_ROJO = "#F04B50"
+COLOR_VERDE = "#19B47A"
+
+
+# ============================================================
+# FUNCIONES AUXILIARES
+# ============================================================
+
+def obtener_id(estudiante):
+    return estudiante.get(
+        "id_estudiante",
+        estudiante.get("id")
+    )
+
+
+def texto_curso(curso):
+
+    nombre = curso.get("nombre_curso")
+
+    if nombre:
+        texto = str(nombre)
+    else:
+        texto = "Curso"
+
+    division = curso.get("division")
+    turno = curso.get("turno")
+
+    if division:
+        texto += " - " + str(division)
+
+    if turno:
+        texto += " - " + str(turno)
+
+    return texto
+
+def formatear_fecha(fecha):
+    """
+    Convierte una fecha de YYYY-MM-DD a DD/MM/YYYY
+    para mostrarla en la tabla.
+    """
+
+    if not fecha:
+        return ""
+
+    fecha = str(fecha)
+
+    try:
+        # Si viene como YYYY-MM-DD
+        partes = fecha[:10].split("-")
+
+        if len(partes) == 3:
+            anio, mes, dia = partes
+            return f"{dia}/{mes}/{anio}"
+
+    except Exception:
+        pass
+
+    return fecha
+
+# ============================================================
+# PANTALLA PRINCIPAL
+# ============================================================
 
 def crear_estudiantes(parent):
-    """
-    Vista CRUD de estudiantes integrada dentro del Frame recibido.
-    Requiere:
-      GET/POST     API_URL
-      GET/PUT/DELETE API_URL/:id
-      GET          API_CURSOS_URL
-    """
 
-    frame = tk.Frame(parent, bg=COLOR_FONDO)
-    # No empaquetar aquí: el menú principal debe colocar esta vista
-    # dentro de su contenedor de contenido para no duplicar el menú lateral.
-
-    frame.grid_rowconfigure(2, weight=1)
-    frame.grid_columnconfigure(0, weight=1)
+    frame = tk.Frame(
+        parent,
+        bg=COLOR_FONDO
+    )
 
     # ========================================================
-    # CABECERA
+    # VARIABLES
     # ========================================================
-    header = tk.Frame(frame, bg=COLOR_FONDO)
-    header.grid(row=0, column=0, sticky="ew", padx=25, pady=(20, 8))
-    header.grid_columnconfigure(0, weight=1)
+
+    estudiantes = []
+    cursos = []
+    cursos_diccionario = {}
+
+    # ========================================================
+    # ENCABEZADO
+    # ========================================================
+
+    encabezado = tk.Frame(
+        frame,
+        bg=COLOR_FONDO
+    )
+
+    encabezado.pack(
+        fill="x",
+        padx=25,
+        pady=(20, 10)
+    )
 
     tk.Label(
-        header, text="Alumnos", font=("Segoe UI", 24, "bold"),
-        fg=COLOR_TEXTO, bg=COLOR_FONDO
-    ).grid(row=0, column=0, sticky="w")
+        encabezado,
+        text="Gestión de alumnos",
+        font=("Segoe UI", 24, "bold"),
+        bg=COLOR_FONDO,
+        fg=COLOR_TEXTO
+    ).pack(side="left")
 
-    label_estado = tk.Label(
-        header, text="● Conectando...", font=("Segoe UI", 10, "bold"),
-        fg=COLOR_AMARILLO, bg=COLOR_FONDO
+    estado_conexion = tk.Label(
+        encabezado,
+        text="● Conectando...",
+        font=("Segoe UI", 10),
+        bg=COLOR_FONDO,
+        fg=COLOR_GRIS
     )
-    label_estado.grid(row=0, column=1, sticky="e", padx=8)
+
+    estado_conexion.pack(
+        side="right",
+        pady=10
+    )
 
     # ========================================================
-    # TARJETAS RESUMEN
+    # TARJETAS
     # ========================================================
-    cards = tk.Frame(frame, bg=COLOR_FONDO)
-    cards.grid(row=1, column=0, sticky="ew", padx=25, pady=8)
-    for col in range(3):
-        cards.grid_columnconfigure(col, weight=1)
 
-    def crear_tarjeta(col, titulo, color=COLOR_BLANCO, color_texto=COLOR_TEXTO):
-        tarjeta = tk.Frame(cards, bg=color, height=100)
-        tarjeta.grid(row=0, column=col, sticky="ew", padx=5)
-        tarjeta.grid_propagate(False)
-        tk.Label(
-            tarjeta, text=titulo, font=("Segoe UI", 10, "bold"),
-            fg=color_texto, bg=color
-        ).pack(anchor="w", padx=16, pady=(13, 0))
-        valor = tk.Label(
-            tarjeta, text="0", font=("Segoe UI", 25, "bold"),
-            fg=color_texto, bg=color
+    tarjetas = tk.Frame(
+        frame,
+        bg=COLOR_FONDO
+    )
+
+    tarjetas.pack(
+        fill="x",
+        padx=25,
+        pady=5
+    )
+
+    def crear_tarjeta(titulo, valor):
+
+        tarjeta = tk.Frame(
+            tarjetas,
+            bg=COLOR_BLANCO,
+            highlightbackground="#DDE4EC",
+            highlightthickness=1
         )
-        valor.pack(anchor="w", padx=16)
-        return valor
 
-    label_total = crear_tarjeta(0, "Total de alumnos", COLOR_AZUL, COLOR_BLANCO)
-    label_registros = crear_tarjeta(1, "Registros cargados")
-    label_cursos = crear_tarjeta(2, "Cursos disponibles")
+        tarjeta.pack(
+            side="left",
+            fill="both",
+            expand=True,
+            padx=5
+        )
 
-    # ========================================================
-    # PANEL PRINCIPAL
-    # ========================================================
-    panel = tk.Frame(
-        frame, bg=COLOR_BLANCO, highlightthickness=1,
-        highlightbackground="#E2E8EE"
+        tk.Label(
+            tarjeta,
+            text=titulo,
+            font=("Segoe UI", 10),
+            bg=COLOR_BLANCO,
+            fg=COLOR_GRIS
+        ).pack(
+            anchor="w",
+            padx=15,
+            pady=(12, 2)
+        )
+
+        etiqueta_valor = tk.Label(
+            tarjeta,
+            text=valor,
+            font=("Segoe UI", 22, "bold"),
+            bg=COLOR_BLANCO,
+            fg=COLOR_TEXTO
+        )
+
+        etiqueta_valor.pack(
+            anchor="w",
+            padx=15,
+            pady=(0, 12)
+        )
+
+        return etiqueta_valor
+
+    lbl_total = crear_tarjeta(
+        "Total de alumnos",
+        "0"
     )
-    panel.grid(row=2, column=0, sticky="nsew", padx=25, pady=(8, 22))
-    panel.grid_columnconfigure(0, weight=1)
-    panel.grid_rowconfigure(2, weight=1)
 
-    barra = tk.Frame(panel, bg=COLOR_BLANCO)
-    barra.grid(row=0, column=0, sticky="ew", padx=18, pady=(16, 10))
-    barra.grid_columnconfigure(0, weight=1)
+    lbl_cargados = crear_tarjeta(
+        "Registros cargados",
+        "0"
+    )
 
-    tk.Label(
-        barra, text="REGISTRO DE ALUMNOS", font=("Segoe UI", 12, "bold"),
-        fg=COLOR_TEXTO, bg=COLOR_BLANCO
-    ).grid(row=0, column=0, sticky="w")
+    lbl_cursos = crear_tarjeta(
+        "Cursos disponibles",
+        "0"
+    )
+
+    # ========================================================
+    # PANEL
+    # ========================================================
+
+    panel = tk.Frame(
+        frame,
+        bg=COLOR_BLANCO,
+        highlightbackground="#DDE4EC",
+        highlightthickness=1
+    )
+
+    panel.pack(
+        fill="both",
+        expand=True,
+        padx=25,
+        pady=15
+    )
+
+    # ========================================================
+    # BOTONES
+    # ========================================================
+
+    zona_botones = tk.Frame(
+        panel,
+        bg=COLOR_BLANCO
+    )
+
+    zona_botones.pack(
+        fill="x",
+        padx=15,
+        pady=(15, 10)
+    )
 
     boton_nuevo = tk.Button(
-        barra, text="+ Nuevo alumno", font=("Segoe UI", 10, "bold"),
-        bg=COLOR_AZUL, fg=COLOR_BLANCO, activebackground=COLOR_AZUL_HOVER,
-        activeforeground=COLOR_BLANCO, relief="flat", bd=0,
-        padx=15, pady=8, cursor="hand2"
+        zona_botones,
+        text="+ Nuevo alumno",
+        font=("Segoe UI", 10, "bold"),
+        bg=COLOR_VERDE,
+        fg="white",
+        activebackground=COLOR_VERDE,
+        activeforeground="white",
+        relief="flat",
+        cursor="hand2",
+        padx=15,
+        pady=9
     )
-    boton_nuevo.grid(row=0, column=1, padx=(8, 0))
+
+    boton_nuevo.pack(
+        side="left",
+        padx=(0, 8)
+    )
 
     boton_editar = tk.Button(
-        barra, text="Editar seleccionado", font=("Segoe UI", 10, "bold"),
-        bg="#E8EEF3", fg=COLOR_TEXTO, activebackground="#D9E4EC",
-        relief="flat", bd=0, padx=12, pady=8, cursor="hand2"
+        zona_botones,
+        text="✎ Editar seleccionado",
+        font=("Segoe UI", 10, "bold"),
+        bg=COLOR_AZUL,
+        fg="white",
+        activebackground=COLOR_AZUL,
+        activeforeground="white",
+        relief="flat",
+        cursor="hand2",
+        padx=15,
+        pady=9
     )
-    boton_editar.grid(row=0, column=2, padx=(8, 0))
+
+    boton_editar.pack(
+        side="left",
+        padx=8
+    )
 
     boton_eliminar = tk.Button(
-        barra, text="Eliminar seleccionado", font=("Segoe UI", 10, "bold"),
-        bg="#FDEBEC", fg=COLOR_ROJO, activebackground="#FAD5D7",
-        relief="flat", bd=0, padx=12, pady=8, cursor="hand2"
+        zona_botones,
+        text="Eliminar seleccionado",
+        font=("Segoe UI", 10, "bold"),
+        bg=COLOR_ROJO,
+        fg="white",
+        activebackground=COLOR_ROJO,
+        activeforeground="white",
+        relief="flat",
+        cursor="hand2",
+        padx=15,
+        pady=9
     )
-    boton_eliminar.grid(row=0, column=3, padx=(8, 0))
+
+    boton_eliminar.pack(
+        side="left",
+        padx=8
+    )
 
     # ========================================================
-    # BUSCADOR Y FILTRO POR CURSO
+    # FILTROS
     # ========================================================
-    filtros = tk.Frame(panel, bg=COLOR_BLANCO)
-    filtros.grid(row=1, column=0, sticky="ew", padx=18, pady=(0, 10))
-    filtros.grid_columnconfigure(0, weight=2)
-    filtros.grid_columnconfigure(1, weight=1)
 
-    entrada_buscar = tk.Entry(
-        filtros, font=("Segoe UI", 10), bg="#F4F7FA",
-        fg=COLOR_TEXTO, relief="flat", highlightthickness=1,
-        highlightbackground="#DDE5EC"
+    zona_filtros = tk.Frame(
+        panel,
+        bg=COLOR_BLANCO
     )
-    entrada_buscar.grid(row=0, column=0, sticky="ew", ipady=8, padx=(0, 10))
-    entrada_buscar.insert(0, "Buscar por nombre, apellido o DNI...")
 
-    def limpiar_placeholder(event=None):
-        if entrada_buscar.get() == "Buscar por nombre, apellido o DNI...":
-            entrada_buscar.delete(0, tk.END)
-
-    def restaurar_placeholder(event=None):
-        if not entrada_buscar.get().strip():
-            entrada_buscar.insert(0, "Buscar por nombre, apellido o DNI...")
-
-    entrada_buscar.bind("<FocusIn>", limpiar_placeholder)
-    entrada_buscar.bind("<FocusOut>", restaurar_placeholder)
-
-    filtro_curso = ttk.Combobox(filtros, state="readonly", font=("Segoe UI", 10))
-    filtro_curso.grid(row=0, column=1, sticky="ew", ipady=4)
-    filtro_curso.set("Todos los cursos")
-
-    boton_refrescar = tk.Button(
-        filtros, text="↻", font=("Segoe UI", 13, "bold"),
-        bg="#E8EEF3", fg=COLOR_TEXTO, relief="flat", bd=0,
-        width=3, cursor="hand2"
+    zona_filtros.pack(
+        fill="x",
+        padx=15,
+        pady=5
     )
-    boton_refrescar.grid(row=0, column=2, padx=(10, 0))
+
+    tk.Label(
+        zona_filtros,
+        text="Buscar:",
+        font=("Segoe UI", 10, "bold"),
+        bg=COLOR_BLANCO,
+        fg=COLOR_TEXTO
+    ).pack(side="left")
+
+    busqueda_var = tk.StringVar()
+
+    entrada_busqueda = tk.Entry(
+        zona_filtros,
+        textvariable=busqueda_var,
+        font=("Segoe UI", 10),
+        width=30
+    )
+
+    entrada_busqueda.pack(
+        side="left",
+        padx=(8, 20)
+    )
+
+    tk.Label(
+        zona_filtros,
+        text="Curso:",
+        font=("Segoe UI", 10, "bold"),
+        bg=COLOR_BLANCO,
+        fg=COLOR_TEXTO
+    ).pack(side="left")
+
+    curso_var = tk.StringVar()
+
+    combo_curso = ttk.Combobox(
+        zona_filtros,
+        textvariable=curso_var,
+        state="readonly",
+        width=28
+    )
+
+    combo_curso.pack(
+        side="left",
+        padx=8
+    )
+
+    boton_actualizar = tk.Button(
+        zona_filtros,
+        text="⟳ Actualizar",
+        font=("Segoe UI", 9, "bold"),
+        bg="#E8EEF5",
+        fg=COLOR_TEXTO,
+        relief="flat",
+        cursor="hand2",
+        padx=10,
+        pady=5
+    )
+
+    boton_actualizar.pack(
+        side="right"
+    )
 
     # ========================================================
     # TABLA
     # ========================================================
-    tabla_frame = tk.Frame(panel, bg=COLOR_BLANCO)
-    tabla_frame.grid(row=2, column=0, sticky="nsew", padx=18, pady=(0, 18))
-    tabla_frame.grid_rowconfigure(0, weight=1)
-    tabla_frame.grid_columnconfigure(0, weight=1)
+
+    zona_tabla = tk.Frame(
+        panel,
+        bg=COLOR_BLANCO
+    )
+
+    zona_tabla.pack(
+        fill="both",
+        expand=True,
+        padx=15,
+        pady=(10, 15)
+    )
 
     columnas = (
-        "id", "nombre", "dni", "fecha", "curso",
-        "tutor", "telefono", "email"
+        "id",
+        "alumno",
+        "dni",
+        "fecha",
+        "curso",
+        "tutor",
+        "telefono",
+        "email"
     )
+
     tabla = ttk.Treeview(
-        tabla_frame, columns=columnas, show="headings", selectmode="browse"
+        zona_tabla,
+        columns=columnas,
+        show="headings",
+        selectmode="browse"
     )
 
     encabezados = {
-        "id": ("ID", 55, "center"),
-        "nombre": ("Nombre y apellido", 175, "w"),
-        "dni": ("DNI", 90, "center"),
-        "fecha": ("Nacimiento", 105, "center"),
-        "curso": ("Curso", 180, "w"),
-        "tutor": ("Tutor", 150, "w"),
-        "telefono": ("Teléfono", 115, "w"),
-        "email": ("Email", 175, "w"),
+        "id": "ID",
+        "alumno": "Alumno",
+        "dni": "DNI",
+        "fecha": "Fecha nacimiento",
+        "curso": "Curso",
+        "tutor": "Tutor",
+        "telefono": "Teléfono",
+        "email": "Email"
     }
-    for clave, (titulo, ancho, ancla) in encabezados.items():
-        tabla.heading(clave, text=titulo)
-        tabla.column(clave, width=ancho, anchor=ancla)
 
-    scrollbar_y = ttk.Scrollbar(tabla_frame, orient="vertical", command=tabla.yview)
-    scrollbar_x = ttk.Scrollbar(tabla_frame, orient="horizontal", command=tabla.xview)
-    tabla.configure(yscrollcommand=scrollbar_y.set, xscrollcommand=scrollbar_x.set)
-    tabla.grid(row=0, column=0, sticky="nsew")
-    scrollbar_y.grid(row=0, column=1, sticky="ns")
-    scrollbar_x.grid(row=1, column=0, sticky="ew")
+    anchos = {
+        "id": 50,
+        "alumno": 180,
+        "dni": 100,
+        "fecha": 120,
+        "curso": 180,
+        "tutor": 160,
+        "telefono": 120,
+        "email": 200
+    }
 
-    estilo = ttk.Style()
-    try:
-        estilo.theme_use("clam")
-    except tk.TclError:
-        pass
-    estilo.configure(
-        "Treeview", background=COLOR_BLANCO, foreground=COLOR_TEXTO,
-        rowheight=35, fieldbackground=COLOR_BLANCO, font=("Segoe UI", 9)
-    )
-    estilo.configure(
-        "Treeview.Heading", background="#EDF2F6", foreground=COLOR_TEXTO,
-        font=("Segoe UI", 9, "bold"), relief="flat"
-    )
-    estilo.map("Treeview", background=[("selected", "#DDF3F7")])
+    for columna in columnas:
 
-    # ========================================================
-    # DATOS EN MEMORIA
-    # ========================================================
-    estudiantes_data = []
-    cursos_data = []
-    curso_por_texto = {}
-    curso_por_id = {}
-
-    def texto_curso(curso):
-        nombre = str(curso.get("nombre_curso") or "Curso")
-        anio = curso.get("anio")
-        division = curso.get("division")
-        turno = curso.get("turno")
-        ciclo = curso.get("ciclo_lectivo")
-
-        partes = [nombre]
-        if anio not in (None, "") and str(anio) != nombre:
-            partes.append(f"Año {anio}")
-        if division:
-            partes.append(f"Div. {division}")
-        if turno:
-            partes.append(str(turno))
-        if ciclo:
-            partes.append(str(ciclo))
-        return " - ".join(partes)
-
-    def cargar_cursos(mostrar_error=True):
-        nonlocal cursos_data, curso_por_texto, curso_por_id
-        try:
-            respuesta = requests.get(API_CURSOS_URL, timeout=5)
-            respuesta.raise_for_status()
-            datos = respuesta.json()
-            if not isinstance(datos, list):
-                raise ValueError("La ruta de cursos debe devolver una lista JSON.")
-
-            cursos_data = datos
-            curso_por_texto = {}
-            curso_por_id = {}
-
-            opciones = ["Todos los cursos"]
-            for curso in cursos_data:
-                id_curso = curso.get("id_curso")
-                if id_curso is None:
-                    continue
-                etiqueta = texto_curso(curso)
-                # Evita etiquetas duplicadas si hay cursos con igual descripción.
-                if etiqueta in curso_por_texto:
-                    etiqueta = f"{etiqueta} (ID {id_curso})"
-                curso_por_texto[etiqueta] = curso
-                curso_por_id[str(id_curso)] = curso
-                opciones.append(etiqueta)
-
-            filtro_curso["values"] = opciones
-            if filtro_curso.get() not in opciones:
-                filtro_curso.set("Todos los cursos")
-            label_cursos.config(text=str(len(cursos_data)))
-            return True
-        except Exception as error:
-            label_cursos.config(text="—")
-            if mostrar_error:
-                messagebox.showerror(
-                    "Error al cargar cursos",
-                    f"No se pudieron cargar los cursos desde:\n{API_CURSOS_URL}\n\n{error}",
-                    parent=frame
-                )
-            return False
-
-    def nombre_curso_estudiante(estudiante):
-        id_curso = estudiante.get("id_curso")
-        curso = curso_por_id.get(str(id_curso)) if id_curso is not None else None
-        if curso:
-            return texto_curso(curso)
-        # El backend de estudiantes incluye nombre_curso mediante LEFT JOIN.
-        return estudiante.get("nombre_curso") or (
-            f"ID curso: {id_curso}" if id_curso else "Sin curso"
+        tabla.heading(
+            columna,
+            text=encabezados[columna]
         )
 
-    def limpiar_tabla():
+        tabla.column(
+            columna,
+            width=anchos[columna]
+        )
+
+    scroll_vertical = ttk.Scrollbar(
+        zona_tabla,
+        orient="vertical",
+        command=tabla.yview
+    )
+
+    scroll_horizontal = ttk.Scrollbar(
+        zona_tabla,
+        orient="horizontal",
+        command=tabla.xview
+    )
+
+    tabla.configure(
+        yscrollcommand=scroll_vertical.set,
+        xscrollcommand=scroll_horizontal.set
+    )
+
+    tabla.grid(
+        row=0,
+        column=0,
+        sticky="nsew"
+    )
+
+    scroll_vertical.grid(
+        row=0,
+        column=1,
+        sticky="ns"
+    )
+
+    scroll_horizontal.grid(
+        row=1,
+        column=0,
+        sticky="ew"
+    )
+
+    zona_tabla.grid_rowconfigure(
+        0,
+        weight=1
+    )
+
+    zona_tabla.grid_columnconfigure(
+        0,
+        weight=1
+    )
+
+    # ========================================================
+    # MOSTRAR TABLA
+    # ========================================================
+
+    def filtrar_y_mostrar():
+
+        texto = busqueda_var.get().strip().lower()
+        curso_seleccionado = curso_var.get()
+
         for item in tabla.get_children():
             tabla.delete(item)
 
-    def filtrar_y_mostrar(event=None):
-        texto = entrada_buscar.get().strip().lower()
-        if texto == "buscar por nombre, apellido o dni...":
-            texto = ""
-        curso_seleccionado = filtro_curso.get()
-        curso_filtrado = curso_por_texto.get(curso_seleccionado)
-        id_curso_filtro = str(curso_filtrado.get("id_curso")) if curso_filtrado else None
+        cantidad = 0
 
-        limpiar_tabla()
-        for estudiante in estudiantes_data:
-            nombre = str(estudiante.get("nombre") or "")
-            apellido = str(estudiante.get("apellido") or "")
-            dni = str(estudiante.get("dni") or "")
-            completo = f"{nombre} {apellido} {dni}".lower()
+        for alumno in estudiantes:
 
-            if texto and texto not in completo:
-                continue
-            if id_curso_filtro and str(estudiante.get("id_curso")) != id_curso_filtro:
-                continue
+            nombre = str(
+                alumno.get("nombre", "")
+            )
 
-            id_estudiante = estudiante.get("id_estudiante")
-            if id_estudiante is None:
-                # Compatibilidad temporal con APIs que devuelvan "id".
-                id_estudiante = estudiante.get("id")
-            if id_estudiante is None:
-                continue
+            apellido = str(
+                alumno.get("apellido", "")
+            )
+
+            dni = str(
+                alumno.get("dni", "")
+            )
+
+            nombre_completo = (
+                nombre + " " + apellido
+            ).lower()
+
+            if texto:
+
+                if (
+                    texto not in nombre_completo
+                    and texto not in dni.lower()
+                ):
+                    continue
+
+            # ----------------------------------------------
+            # FILTRO POR CURSO
+            # ----------------------------------------------
+
+            if (
+                curso_seleccionado
+                and curso_seleccionado != "Todos los cursos"
+            ):
+
+                id_curso_alumno = str(
+                    alumno.get("id_curso", "")
+                )
+
+                id_curso_filtro = str(
+                    cursos_diccionario.get(
+                        curso_seleccionado,
+                        ""
+                    )
+                )
+
+                if id_curso_alumno != id_curso_filtro:
+                    continue
+
+            id_estudiante = obtener_id(alumno)
+
+            fecha = alumno.get(
+                "fecha_nacimiento",
+                ""
+            )
+
+            fecha = formatear_fecha(fecha)
+
+            curso = alumno.get(
+                "nombre_curso",
+                "Sin curso"
+            )
+
+            if alumno.get("division"):
+                curso += " - " + str(
+                    alumno.get("division")
+                )
+
+            if alumno.get("turno"):
+                curso += " - " + str(
+                    alumno.get("turno")
+                )
+
+            nombre_completo = (
+                f"{alumno.get('nombre', '')} "
+                f"{alumno.get('apellido', '')}"
+            ).strip()
 
             tabla.insert(
-                "", "end", iid=str(id_estudiante),
+                "",
+                "end",
+                iid=str(id_estudiante),
                 values=(
                     id_estudiante,
-                    f"{nombre} {apellido}".strip(),
-                    dni,
-                    str(estudiante.get("fecha_nacimiento") or "")[:10],
-                    nombre_curso_estudiante(estudiante),
-                    estudiante.get("nombre_tutor") or "",
-                    estudiante.get("telefono_tutor") or "",
-                    estudiante.get("email_tutor") or "",
+                    nombre_completo,
+                    alumno.get("dni", ""),
+                    fecha,
+                    curso,
+                    alumno.get("nombre_tutor", ""),
+                    alumno.get("telefono_tutor", ""),
+                    alumno.get("email_tutor", "")
                 )
             )
 
-    def cargar_estudiantes(mostrar_error=True):
-        nonlocal estudiantes_data
+            cantidad += 1
+
+        lbl_cargados.config(
+            text=str(cantidad)
+        )
+
+    # ========================================================
+    # CARGAR CURSOS
+    # ========================================================
+
+    def cargar_cursos():
+
+        nonlocal cursos, cursos_diccionario
+
         try:
-            respuesta = requests.get(API_URL, timeout=5)
+
+            respuesta = requests.get(
+                CURSOS_URL,
+                timeout=8
+            )
+
             respuesta.raise_for_status()
-            datos = respuesta.json()
-            if not isinstance(datos, list):
-                raise ValueError("La ruta de estudiantes debe devolver una lista JSON.")
-            estudiantes_data = datos
-            cantidad = len(estudiantes_data)
-            label_total.config(text=str(cantidad))
-            label_registros.config(text=str(cantidad))
-            label_estado.config(text="● Conectado", fg=COLOR_VERDE)
+
+            cursos = respuesta.json()
+
+            cursos_diccionario = {}
+
+            valores = [
+                "Todos los cursos"
+            ]
+
+            for curso in cursos:
+
+                nombre = texto_curso(curso)
+
+                id_curso = curso.get(
+                    "id_curso"
+                )
+
+                cursos_diccionario[
+                    nombre
+                ] = id_curso
+
+                valores.append(
+                    nombre
+                )
+
+            combo_curso["values"] = valores
+
+            curso_var.set(
+                "Todos los cursos"
+            )
+
+            lbl_cursos.config(
+                text=str(len(cursos))
+            )
+
+            estado_conexion.config(
+                text="● Conectado",
+                fg=COLOR_VERDE
+            )
+
+        except requests.RequestException as error:
+
+            estado_conexion.config(
+                text="● Error de conexión",
+                fg=COLOR_ROJO
+            )
+
+            messagebox.showerror(
+                "Error",
+                "No se pudieron cargar los cursos.\n\n"
+                + str(error),
+                parent=frame
+            )
+
+    # ========================================================
+    # CARGAR ESTUDIANTES
+    # ========================================================
+
+    def cargar_estudiantes(
+        mostrar_mensaje=True
+    ):
+
+        nonlocal estudiantes
+
+        try:
+
+            respuesta = requests.get(
+                API_URL,
+                timeout=8
+            )
+
+            respuesta.raise_for_status()
+
+            estudiantes = respuesta.json()
+
+            lbl_total.config(
+                text=str(len(estudiantes))
+            )
+
             filtrar_y_mostrar()
-        except Exception as error:
-            label_estado.config(text="● Sin conexión / error", fg=COLOR_ROJO)
-            limpiar_tabla()
-            if mostrar_error:
+
+            estado_conexion.config(
+                text="● Conectado",
+                fg=COLOR_VERDE
+            )
+
+        except requests.RequestException as error:
+
+            estado_conexion.config(
+                text="● Error de conexión",
+                fg=COLOR_ROJO
+            )
+
+            if mostrar_mensaje:
+
                 messagebox.showerror(
-                    "Error al cargar estudiantes",
-                    f"No se pudieron cargar los estudiantes desde:\n{API_URL}\n\n{error}",
+                    "Error",
+                    "No se pudieron cargar los estudiantes.\n\n"
+                    + str(error),
                     parent=frame
                 )
 
     # ========================================================
-    # FORMULARIO ALTA / EDICIÓN
+    # OBTENER CURSO
     # ========================================================
-    def abrir_formulario(estudiante=None):
-        editando = estudiante is not None
 
-        if not cursos_data and not cargar_cursos(mostrar_error=False):
-            messagebox.showwarning(
-                "Cursos no disponibles",
-                "No se pudo cargar la lista de cursos.\n"
-                "Verificá que exista la ruta GET de cursos y que haya cursos registrados.",
-                parent=frame
-            )
-            return
+    def obtener_id_curso(curso_form_var):
 
-        ventana = tk.Toplevel(frame)
-        ventana.title("Editar estudiante" if editando else "Nuevo estudiante")
-        ventana.geometry("640x690")
-        ventana.minsize(600, 650)
-        ventana.configure(bg=COLOR_BLANCO)
-        ventana.transient(frame.winfo_toplevel())
+        nombre_curso = curso_form_var.get().strip()
 
-        encabezado = tk.Frame(ventana, bg=COLOR_AZUL, height=75)
-        encabezado.pack(fill="x")
-        encabezado.pack_propagate(False)
-        tk.Label(
-            encabezado,
-            text="EDITAR ALUMNO" if editando else "NUEVO ALUMNO",
-            font=("Segoe UI", 17, "bold"), fg=COLOR_BLANCO, bg=COLOR_AZUL
-        ).pack(anchor="w", padx=25, pady=20)
+        if not nombre_curso:
+            return None
 
-        form = tk.Frame(ventana, bg=COLOR_BLANCO)
-        form.pack(fill="both", expand=True, padx=30, pady=18)
-        form.grid_columnconfigure(1, weight=1)
+        return cursos_diccionario.get(
+            nombre_curso
+        )
 
-        campos = {}
-        datos_campos = [
-            ("nombre", "Nombre"),
-            ("apellido", "Apellido"),
-            ("dni", "DNI"),
-            ("fecha_nacimiento", "Fecha de nacimiento (AAAA-MM-DD)"),
-            ("nombre_tutor", "Nombre del tutor"),
-            ("telefono_tutor", "Teléfono del tutor"),
-            ("email_tutor", "Email del tutor"),
-        ]
+    # ========================================================
+    # FORMULARIO NUEVO / EDITAR
+    # ========================================================
 
-        for fila, (clave, etiqueta) in enumerate(datos_campos):
-            tk.Label(
-                form, text=etiqueta, font=("Segoe UI", 10, "bold"),
-                fg=COLOR_TEXTO, bg=COLOR_BLANCO
-            ).grid(row=fila, column=0, sticky="w", pady=7)
+    def abrir_formulario(
+        modo="nuevo",
+        alumno=None
+    ):
 
-            entrada = tk.Entry(
-                form, font=("Segoe UI", 10), bg="#F5F8FA",
-                fg=COLOR_TEXTO, relief="flat", highlightthickness=1,
-                highlightbackground="#D8E1E8"
-            )
-            entrada.grid(row=fila, column=1, sticky="ew", padx=(18, 0), ipady=7)
-            campos[clave] = entrada
+        ventana = tk.Toplevel(
+            frame
+        )
 
-            if editando:
-                valor = estudiante.get(clave, "")
-                if valor is not None:
-                    entrada.insert(0, str(valor)[:10] if clave == "fecha_nacimiento" else str(valor))
-
-        fila_curso = len(datos_campos)
-        tk.Label(
-            form, text="Curso", font=("Segoe UI", 10, "bold"),
-            fg=COLOR_TEXTO, bg=COLOR_BLANCO
-        ).grid(row=fila_curso, column=0, sticky="w", pady=7)
-
-        combo_curso = ttk.Combobox(form, state="readonly", font=("Segoe UI", 10))
-        combo_curso.grid(row=fila_curso, column=1, sticky="ew", padx=(18, 0), ipady=5)
-
-        opciones_cursos = list(curso_por_texto.keys())
-        combo_curso["values"] = opciones_cursos
-
-        curso_actual_id = estudiante.get("id_curso") if editando else None
-        curso_actual = curso_por_id.get(str(curso_actual_id)) if curso_actual_id is not None else None
-        if curso_actual:
-            combo_curso.set(texto_curso(curso_actual))
-        elif opciones_cursos:
-            combo_curso.current(0)
-
-        tk.Label(
-            form,
-            text="Seleccioná el curso al que pertenece el estudiante.",
-            font=("Segoe UI", 9), fg=COLOR_GRIS, bg=COLOR_BLANCO
-        ).grid(row=fila_curso + 1, column=1, sticky="w", padx=(18, 0), pady=(0, 8))
-
-        botones = tk.Frame(ventana, bg=COLOR_BLANCO)
-        botones.pack(fill="x", padx=30, pady=(0, 22))
-
-        def guardar():
-            datos_enviar = {
-                clave: entrada.get().strip()
-                for clave, entrada in campos.items()
-            }
-
-            if not datos_enviar["nombre"]:
-                messagebox.showwarning("Datos incompletos", "Ingresá el nombre del estudiante.", parent=ventana)
-                return
-            if not datos_enviar["apellido"]:
-                messagebox.showwarning("Datos incompletos", "Ingresá el apellido del estudiante.", parent=ventana)
-                return
-            if not datos_enviar["dni"]:
-                messagebox.showwarning("Datos incompletos", "Ingresá el DNI.", parent=ventana)
-                return
-            if not datos_enviar["fecha_nacimiento"]:
-                messagebox.showwarning("Datos incompletos", "Ingresá la fecha de nacimiento.", parent=ventana)
-                return
-            if not combo_curso.get():
-                messagebox.showwarning("Curso obligatorio", "Seleccioná un curso.", parent=ventana)
-                return
-
-            curso_elegido = curso_por_texto.get(combo_curso.get())
-            if not curso_elegido:
-                messagebox.showwarning("Curso inválido", "Seleccioná un curso válido de la lista.", parent=ventana)
-                return
-
-            datos_enviar["id_curso"] = int(curso_elegido["id_curso"])
-
-            try:
-                if editando:
-                    id_estudiante = estudiante.get("id_estudiante", estudiante.get("id"))
-                    respuesta = requests.put(
-                        f"{API_URL}/{id_estudiante}", json=datos_enviar, timeout=8
-                    )
-                else:
-                    respuesta = requests.post(API_URL, json=datos_enviar, timeout=8)
-
-                if respuesta.status_code in (200, 201):
-                    messagebox.showinfo(
-                        "Correcto",
-                        "Estudiante actualizado correctamente." if editando
-                        else "Estudiante agregado correctamente.",
-                        parent=ventana
-                    )
-                    ventana.destroy()
-                    cargar_estudiantes()
-                else:
-                    try:
-                        error_json = respuesta.json()
-                        detalle = error_json.get("detalle") or error_json.get("error") or respuesta.text
-                    except ValueError:
-                        detalle = respuesta.text
-                    messagebox.showerror("Error", detalle, parent=ventana)
-
-            except requests.RequestException as error:
-                messagebox.showerror("Error de conexión", f"No se pudo conectar con el backend.\n{error}", parent=ventana)
-
-        tk.Button(
-            botones, text="Cancelar", font=("Segoe UI", 10, "bold"),
-            bg="#E9EEF2", fg=COLOR_TEXTO, relief="flat", bd=0,
-            padx=22, pady=10, cursor="hand2", command=ventana.destroy
-        ).pack(side="right", padx=5)
-
-        tk.Button(
-            botones, text="Guardar cambios" if editando else "Guardar alumno",
-            font=("Segoe UI", 10, "bold"), bg=COLOR_AZUL, fg=COLOR_BLANCO,
-            activebackground=COLOR_AZUL_HOVER, activeforeground=COLOR_BLANCO,
-            relief="flat", bd=0, padx=22, pady=10, cursor="hand2",
-            command=guardar
-        ).pack(side="right", padx=5)
+        ventana.transient(
+            frame.winfo_toplevel()
+        )
 
         ventana.grab_set()
 
-    # ========================================================
-    # ACCIONES DE EDICIÓN Y ELIMINACIÓN
-    # ========================================================
-    def estudiante_seleccionado():
-        seleccion = tabla.selection()
-        if not seleccion:
-            messagebox.showwarning("Seleccionar estudiante", "Seleccioná un estudiante de la tabla.", parent=frame)
-            return None
-        id_seleccionado = str(seleccion[0])
-        for estudiante in estudiantes_data:
-            id_est = estudiante.get("id_estudiante", estudiante.get("id"))
-            if str(id_est) == id_seleccionado:
-                return estudiante
-        return None
+        if modo == "nuevo":
+            ventana.title(
+                "Nuevo alumno"
+            )
+        else:
+            ventana.title(
+                "Editar alumno"
+            )
 
-    def editar_seleccionado(event=None):
-        estudiante = estudiante_seleccionado()
-        if estudiante is None:
-            return
-        # Consultar el registro actualizado para obtener id_curso y demás campos.
-        id_est = estudiante.get("id_estudiante", estudiante.get("id"))
-        try:
-            respuesta = requests.get(f"{API_URL}/{id_est}", timeout=8)
-            respuesta.raise_for_status()
-            abrir_formulario(respuesta.json())
-        except Exception as error:
-            messagebox.showerror("Error", f"No se pudo obtener el estudiante.\n{error}", parent=frame)
+        ventana.geometry(
+            "650x650"
+        )
 
-    def eliminar_seleccionado(event=None):
-        estudiante = estudiante_seleccionado()
-        if estudiante is None:
-            return
-        id_est = estudiante.get("id_estudiante", estudiante.get("id"))
-        nombre = f"{estudiante.get('nombre', '')} {estudiante.get('apellido', '')}".strip()
+        ventana.resizable(
+            False,
+            False
+        )
 
-        if not messagebox.askyesno(
-            "Confirmar eliminación",
-            f"¿Querés eliminar al estudiante?\n\n{nombre}\n\nEsta acción no se puede deshacer.",
-            parent=frame
+        ventana.configure(
+            bg=COLOR_FONDO
+        )
+
+        # ====================================================
+        # TÍTULO
+        # ====================================================
+
+        tk.Label(
+            ventana,
+            text=(
+                "Nuevo alumno"
+                if modo == "nuevo"
+                else "Editar alumno"
+            ),
+            font=("Segoe UI", 20, "bold"),
+            bg=COLOR_FONDO,
+            fg=COLOR_TEXTO
+        ).pack(
+            anchor="w",
+            padx=25,
+            pady=(20, 10)
+        )
+
+        formulario = tk.Frame(
+            ventana,
+            bg=COLOR_BLANCO,
+            highlightbackground="#DDE4EC",
+            highlightthickness=1
+        )
+
+        formulario.pack(
+            fill="both",
+            expand=True,
+            padx=25,
+            pady=10
+        )
+
+        # ====================================================
+        # VARIABLES DEL FORMULARIO
+        # ====================================================
+
+        nombre_var = tk.StringVar()
+        apellido_var = tk.StringVar()
+        dni_var = tk.StringVar()
+        fecha_var = tk.StringVar()
+        tutor_var = tk.StringVar()
+        telefono_var = tk.StringVar()
+        email_var = tk.StringVar()
+
+        # ESTA ES LA VARIABLE CORRECTA
+        curso_form_var = tk.StringVar()
+
+        # ====================================================
+        # CAMPOS
+        # ====================================================
+
+        def crear_campo(
+            fila,
+            texto,
+            variable
         ):
+
+            tk.Label(
+                formulario,
+                text=texto,
+                font=("Segoe UI", 10, "bold"),
+                bg=COLOR_BLANCO,
+                fg=COLOR_TEXTO
+            ).grid(
+                row=fila,
+                column=0,
+                sticky="w",
+                padx=20,
+                pady=8
+            )
+
+            entrada = tk.Entry(
+                formulario,
+                textvariable=variable,
+                font=("Segoe UI", 10),
+                width=38
+            )
+
+            entrada.grid(
+                row=fila,
+                column=1,
+                sticky="ew",
+                padx=20,
+                pady=8
+            )
+
+            return entrada
+
+        formulario.grid_columnconfigure(
+            1,
+            weight=1
+        )
+
+        crear_campo(
+            0,
+            "Nombre:",
+            nombre_var
+        )
+
+        crear_campo(
+            1,
+            "Apellido:",
+            apellido_var
+        )
+
+        crear_campo(
+            2,
+            "DNI:",
+            dni_var
+        )
+
+        crear_campo(
+            3,
+            "Fecha de nacimiento:",
+            fecha_var
+        )
+
+        crear_campo(
+            4,
+            "Nombre del tutor:",
+            tutor_var
+        )
+
+        crear_campo(
+            5,
+            "Teléfono del tutor:",
+            telefono_var
+        )
+
+        crear_campo(
+            6,
+            "Email del tutor:",
+            email_var
+        )
+
+        # ====================================================
+        # CURSO
+        # ====================================================
+
+        tk.Label(
+            formulario,
+            text="Curso:",
+            font=("Segoe UI", 10, "bold"),
+            bg=COLOR_BLANCO,
+            fg=COLOR_TEXTO
+        ).grid(
+            row=7,
+            column=0,
+            sticky="w",
+            padx=20,
+            pady=8
+        )
+
+        combo_form_curso = ttk.Combobox(
+            formulario,
+            textvariable=curso_form_var,
+            state="readonly",
+            width=35
+        )
+
+        combo_form_curso.grid(
+            row=7,
+            column=1,
+            sticky="ew",
+            padx=20,
+            pady=8
+        )
+
+        combo_form_curso["values"] = list(
+            cursos_diccionario.keys()
+        )
+
+        # ====================================================
+        # CARGAR DATOS PARA EDITAR
+        # ====================================================
+
+        if modo == "editar" and alumno:
+
+            nombre_var.set(
+                alumno.get("nombre", "")
+            )
+
+            apellido_var.set(
+                alumno.get("apellido", "")
+            )
+
+            dni_var.set(
+                alumno.get("dni", "")
+            )
+
+            fecha = alumno.get(
+                "fecha_nacimiento",
+                ""
+            )
+
+            fecha_var.set(
+                str(fecha)
+            )
+
+            tutor_var.set(
+                alumno.get(
+                    "nombre_tutor",
+                    ""
+                )
+            )
+
+            telefono_var.set(
+                alumno.get(
+                    "telefono_tutor",
+                    ""
+                )
+            )
+
+            email_var.set(
+                alumno.get(
+                    "email_tutor",
+                    ""
+                )
+            )
+
+            id_curso_actual = alumno.get(
+                "id_curso"
+            )
+
+            for nombre_curso, id_curso in cursos_diccionario.items():
+
+                if str(id_curso) == str(
+                    id_curso_actual
+                ):
+
+                    curso_form_var.set(
+                        nombre_curso
+                    )
+
+                    break
+
+        # ====================================================
+        # BOTONES
+        # ====================================================
+
+        zona_botones_form = tk.Frame(
+            formulario,
+            bg=COLOR_BLANCO
+        )
+
+        zona_botones_form.grid(
+            row=9,
+            column=0,
+            columnspan=2,
+            sticky="e",
+            padx=20,
+            pady=20
+        )
+
+        tk.Button(
+            zona_botones_form,
+            text="Cancelar",
+            font=("Segoe UI", 10, "bold"),
+            bg="#E8EEF5",
+            fg=COLOR_TEXTO,
+            relief="flat",
+            cursor="hand2",
+            padx=18,
+            pady=8,
+            command=ventana.destroy
+        ).pack(
+            side="left",
+            padx=5
+        )
+
+        # ====================================================
+        # GUARDAR
+        # ====================================================
+
+        def guardar():
+
+            nombre = nombre_var.get().strip()
+            apellido = apellido_var.get().strip()
+            dni = dni_var.get().strip()
+            fecha = fecha_var.get().strip()
+            tutor = tutor_var.get().strip()
+            telefono = telefono_var.get().strip()
+            email = email_var.get().strip()
+
+            # ACÁ SE USA LA VARIABLE CORRECTA
+            id_curso = obtener_id_curso(
+                curso_form_var
+            )
+
+            # ------------------------------------------------
+            # VALIDACIONES
+            # ------------------------------------------------
+
+            if not nombre:
+
+                messagebox.showwarning(
+                    "Datos incompletos",
+                    "Ingresá el nombre del alumno.",
+                    parent=ventana
+                )
+
+                return
+
+            if not apellido:
+
+                messagebox.showwarning(
+                    "Datos incompletos",
+                    "Ingresá el apellido del alumno.",
+                    parent=ventana
+                )
+
+                return
+
+            if not dni:
+
+                messagebox.showwarning(
+                    "Datos incompletos",
+                    "Ingresá el DNI del alumno.",
+                    parent=ventana
+                )
+
+                return
+
+            if not id_curso:
+
+                messagebox.showwarning(
+                    "Datos incompletos",
+                    "Seleccioná un curso.",
+                    parent=ventana
+                )
+
+                return
+
+            datos = {
+                "nombre": nombre,
+                "apellido": apellido,
+                "dni": dni,
+                "fecha_nacimiento": fecha,
+                "nombre_tutor": tutor,
+                "telefono_tutor": telefono,
+                "email_tutor": email,
+                "id_curso": id_curso
+            }
+
+            # =================================================
+            # NUEVO ALUMNO
+            # =================================================
+
+            if modo == "nuevo":
+
+                try:
+
+                    respuesta = requests.post(
+                        API_URL,
+                        json=datos,
+                        timeout=8
+                    )
+
+                    if respuesta.status_code not in (
+                        200,
+                        201
+                    ):
+
+                        try:
+
+                            informacion = respuesta.json()
+
+                            detalle = informacion.get(
+                                "detalle",
+                                informacion.get(
+                                    "error",
+                                    "Error desconocido"
+                                )
+                            )
+
+                        except Exception:
+
+                            detalle = respuesta.text
+
+                        messagebox.showerror(
+                            "Error al agregar",
+                            detalle,
+                            parent=ventana
+                        )
+
+                        return
+
+                    messagebox.showinfo(
+                        "Alumno agregado",
+                        "El alumno fue agregado correctamente.",
+                        parent=ventana
+                    )
+
+                    ventana.destroy()
+
+                    cargar_estudiantes(
+                        mostrar_mensaje=False
+                    )
+
+                except requests.RequestException as error:
+
+                    messagebox.showerror(
+                        "Error de conexión",
+                        "No se pudo conectar con el servidor.\n\n"
+                        + str(error),
+                        parent=ventana
+                    )
+
+            # =================================================
+            # EDITAR ALUMNO
+            # =================================================
+
+            else:
+
+                id_estudiante = obtener_id(
+                    alumno
+                )
+
+                try:
+
+                    respuesta = requests.put(
+                        f"{API_URL}/{id_estudiante}",
+                        json=datos,
+                        timeout=8
+                    )
+
+                    if respuesta.status_code not in (
+                        200,
+                        201
+                    ):
+
+                        try:
+
+                            informacion = respuesta.json()
+
+                            detalle = informacion.get(
+                                "detalle",
+                                informacion.get(
+                                    "error",
+                                    "Error desconocido"
+                                )
+                            )
+
+                        except Exception:
+
+                            detalle = respuesta.text
+
+                        messagebox.showerror(
+                            "Error al editar",
+                            detalle,
+                            parent=ventana
+                        )
+
+                        return
+
+                    messagebox.showinfo(
+                        "Alumno actualizado",
+                        "Los datos del alumno fueron actualizados correctamente.",
+                        parent=ventana
+                    )
+
+                    ventana.destroy()
+
+                    cargar_estudiantes(
+                        mostrar_mensaje=False
+                    )
+
+                except requests.RequestException as error:
+
+                    messagebox.showerror(
+                        "Error de conexión",
+                        "No se pudo conectar con el servidor.\n\n"
+                        + str(error),
+                        parent=ventana
+                    )
+
+        tk.Button(
+            zona_botones_form,
+            text=(
+                "Agregar alumno"
+                if modo == "nuevo"
+                else "Guardar cambios"
+            ),
+            font=("Segoe UI", 10, "bold"),
+            bg=(
+                COLOR_VERDE
+                if modo == "nuevo"
+                else COLOR_AZUL
+            ),
+            fg="white",
+            relief="flat",
+            cursor="hand2",
+            padx=18,
+            pady=8,
+            command=guardar
+        ).pack(
+            side="left",
+            padx=5
+        )
+
+    # ========================================================
+    # NUEVO ALUMNO
+    # ========================================================
+
+    def nuevo_alumno():
+
+        if not cursos:
+
+            cargar_cursos()
+
+        if not cursos:
+
+            messagebox.showwarning(
+                "Cursos",
+                "No hay cursos disponibles para seleccionar.",
+                parent=frame
+            )
+
+            return
+
+        abrir_formulario(
+            modo="nuevo"
+        )
+
+    # ========================================================
+    # EDITAR
+    # ========================================================
+
+    def editar_alumno():
+
+        seleccion = tabla.selection()
+
+        if not seleccion:
+
+            messagebox.showwarning(
+                "Editar alumno",
+                "Seleccioná un alumno de la tabla.",
+                parent=frame
+            )
+
+            return
+
+        id_estudiante = seleccion[0]
+
+        alumno_encontrado = None
+
+        for alumno in estudiantes:
+
+            if str(
+                obtener_id(alumno)
+            ) == str(id_estudiante):
+
+                alumno_encontrado = alumno
+                break
+
+        if alumno_encontrado is None:
+
+            messagebox.showerror(
+                "Error",
+                "No se encontró la información del alumno.",
+                parent=frame
+            )
+
+            return
+
+        abrir_formulario(
+            modo="editar",
+            alumno=alumno_encontrado
+        )
+
+    # ========================================================
+    # ELIMINAR
+    # ========================================================
+
+    def eliminar_alumno():
+
+        seleccion = tabla.selection()
+
+        if not seleccion:
+
+            messagebox.showwarning(
+                "Eliminar alumno",
+                "Seleccioná un alumno de la tabla.",
+                parent=frame
+            )
+
+            return
+
+        id_estudiante = seleccion[0]
+
+        nombre = "el alumno seleccionado"
+
+        for alumno in estudiantes:
+
+            if str(
+                obtener_id(alumno)
+            ) == str(id_estudiante):
+
+                nombre = (
+                    f"{alumno.get('nombre', '')} "
+                    f"{alumno.get('apellido', '')}"
+                ).strip()
+
+                break
+
+        confirmar = messagebox.askyesno(
+            "Eliminar alumno",
+            f"¿Querés eliminar a {nombre}?\n\n"
+            "Esta acción no se puede deshacer.",
+            parent=frame
+        )
+
+        if not confirmar:
             return
 
         try:
-            respuesta = requests.delete(f"{API_URL}/{id_est}", timeout=8)
-            if respuesta.status_code in (200, 204):
-                messagebox.showinfo("Correcto", "Estudiante eliminado correctamente.", parent=frame)
-                cargar_estudiantes()
-            else:
+
+            respuesta = requests.delete(
+                f"{API_URL}/{id_estudiante}",
+                timeout=8
+            )
+
+            if respuesta.status_code not in (
+                200,
+                204
+            ):
+
                 try:
-                    body = respuesta.json()
-                    detalle = body.get("detalle") or body.get("error") or respuesta.text
-                except ValueError:
+
+                    informacion = respuesta.json()
+
+                    detalle = informacion.get(
+                        "detalle",
+                        informacion.get(
+                            "error",
+                            "Error desconocido"
+                        )
+                    )
+
+                except Exception:
+
                     detalle = respuesta.text
-                messagebox.showerror("Error", detalle, parent=frame)
+
+                messagebox.showerror(
+                    "Error al eliminar",
+                    detalle,
+                    parent=frame
+                )
+
+                return
+
+            messagebox.showinfo(
+                "Alumno eliminado",
+                "El alumno fue eliminado correctamente.",
+                parent=frame
+            )
+
+            cargar_estudiantes(
+                mostrar_mensaje=False
+            )
+
         except requests.RequestException as error:
-            messagebox.showerror("Error de conexión", str(error), parent=frame)
 
-    boton_nuevo.config(command=abrir_formulario)
-    boton_editar.config(command=editar_seleccionado)
-    boton_eliminar.config(command=eliminar_seleccionado)
-    boton_refrescar.config(command=lambda: (cargar_cursos(), cargar_estudiantes()))
-    tabla.bind("<Double-1>", editar_seleccionado)
-    tabla.bind("<Delete>", eliminar_seleccionado)
-    tabla.bind("<F2>", editar_seleccionado)
-    entrada_buscar.bind("<KeyRelease>", filtrar_y_mostrar)
-    filtro_curso.bind("<<ComboboxSelected>>", filtrar_y_mostrar)
+            messagebox.showerror(
+                "Error de conexión",
+                "No se pudo conectar con el servidor.\n\n"
+                + str(error),
+                parent=frame
+            )
 
-    # Cargar cursos primero para poder mostrar nombres en la tabla.
-    cargar_cursos(mostrar_error=False)
-    cargar_estudiantes(mostrar_error=True)
+    # ========================================================
+    # EVENTOS
+    # ========================================================
+
+    boton_nuevo.config(
+        command=nuevo_alumno
+    )
+
+    boton_editar.config(
+        command=editar_alumno
+    )
+
+    boton_eliminar.config(
+        command=eliminar_alumno
+    )
+
+    entrada_busqueda.bind(
+        "<KeyRelease>",
+        lambda event: filtrar_y_mostrar()
+    )
+
+    combo_curso.bind(
+        "<<ComboboxSelected>>",
+        lambda event: filtrar_y_mostrar()
+    )
+
+    boton_actualizar.config(
+        command=lambda: (
+            cargar_cursos(),
+            cargar_estudiantes(
+                mostrar_mensaje=False
+            )
+        )
+    )
+
+    tabla.bind(
+        "<Double-1>",
+        lambda event: editar_alumno()
+    )
+
+    # ========================================================
+    # CARGA INICIAL
+    # ========================================================
+
+    cargar_cursos()
+
+    cargar_estudiantes(
+        mostrar_mensaje=False
+    )
 
     return frame

@@ -1,7 +1,13 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import messagebox
 import requests
-from frames.inicio import crear_inicio 
+from frames.inicio import crear_inicio
+
+
+# ============================================================
+# MOSTRAR PANTALLA DE INICIO
+# ============================================================
+
 def mostrar_inicio():
 
     global contenedor
@@ -9,7 +15,7 @@ def mostrar_inicio():
     # Eliminar el login
     login.destroy()
 
-    # Crear un contenedor que ocupe toda la ventana
+    # Crear un nuevo contenedor
     contenedor = tk.Frame(
         ventana,
         bg="#eef1f5"
@@ -20,18 +26,25 @@ def mostrar_inicio():
         expand=True
     )
 
-    # Crear el frame de inicio
+    # Crear la pantalla principal
     frame_inicio = crear_inicio(contenedor)
 
     frame_inicio.pack(
         fill="both",
         expand=True
-    ) 
+    )
+
+
+# ============================================================
+# INICIAR SESIÓN
+# ============================================================
+
 def iniciar_sesion():
 
-    usuario = entrada_usuario.get()
-    contraseña = entrada_contraseña.get()
+    usuario = entrada_usuario.get().strip()
+    contraseña = entrada_contraseña.get().strip()
 
+    # Verificar que los campos no estén vacíos
     if usuario == "" or contraseña == "":
         messagebox.showwarning(
             "Campos vacíos",
@@ -39,6 +52,7 @@ def iniciar_sesion():
         )
         return
 
+    # Datos que se envían al backend
     datos = {
         "nombre_usuario": usuario,
         "contrasena": contraseña
@@ -51,6 +65,7 @@ def iniciar_sesion():
             json=datos
         )
 
+        # Usuario y contraseña correctos
         if respuesta.status_code == 200:
 
             messagebox.showinfo(
@@ -58,16 +73,18 @@ def iniciar_sesion():
                 "¡Bienvenido!"
             )
 
-            # Acá podrías abrir la pantalla principal
+            # Abrir la pantalla principal
             mostrar_inicio()
 
+        # Usuario o contraseña incorrectos
         elif respuesta.status_code == 401:
 
             messagebox.showerror(
-                "Error",
+                "Acceso denegado",
                 "Usuario o contraseña incorrectos."
             )
 
+        # Otro error del servidor
         else:
 
             messagebox.showerror(
@@ -78,42 +95,52 @@ def iniciar_sesion():
     except requests.exceptions.RequestException:
 
         messagebox.showerror(
-            "Error",
+            "Error de conexión",
             "No se pudo conectar con el servidor."
-        ) 
+        )
 
 
-# -----------------------------
-# Ventana principal
-# -----------------------------
+# ============================================================
+# VENTANA PRINCIPAL
+# ============================================================
+
 ventana = tk.Tk()
+
 ventana.title("ProAConnect - Inicio de Sesión")
+
 ventana.geometry("1000x650")
+
 ventana.minsize(800, 550)
-ventana.configure(bg="#0d1728")
+
+ventana.configure(
+    bg="#0d1728"
+)
 
 
-# -----------------------------
-# Contenedor principal
-# -----------------------------
+# ============================================================
+# CONTENEDOR PRINCIPAL
+# ============================================================
+
 contenedor = tk.Frame(
     ventana,
     bg="#0d1728"
 )
+
 contenedor.pack(
     fill="both",
     expand=True
 )
 
 
-# -----------------------------
-# Tarjeta blanca del Login
-# -----------------------------
+# ============================================================
+# TARJETA DEL LOGIN
+# ============================================================
+
 login = tk.Frame(
     contenedor,
     bg="white",
     width=480,
-    height=570
+    height=520
 )
 
 login.place(
@@ -122,13 +149,15 @@ login.place(
     anchor="center"
 )
 
-# Evita que el contenido cambie el tamaño de la tarjeta
+# Evita que el contenido modifique el tamaño
+# de la tarjeta
 login.pack_propagate(False)
 
 
-# -----------------------------
-# Ícono superior
-# -----------------------------
+# ============================================================
+# ÍCONO
+# ============================================================
+
 icono = tk.Label(
     login,
     text="🌐",
@@ -139,12 +168,15 @@ icono = tk.Label(
     height=1
 )
 
-icono.pack(pady=(35, 15))
+icono.pack(
+    pady=(35, 15)
+)
 
 
-# -----------------------------
-# Título
-# -----------------------------
+# ============================================================
+# TÍTULO
+# ============================================================
+
 titulo = tk.Label(
     login,
     text="ProAConnect",
@@ -164,15 +196,18 @@ subtitulo = tk.Label(
     fg="#718096"
 )
 
-subtitulo.pack(pady=(5, 30))
+subtitulo.pack(
+    pady=(5, 30)
+)
 
 
-# -----------------------------
-# Usuario
-# -----------------------------
+# ============================================================
+# USUARIO
+# ============================================================
+
 tk.Label(
     login,
-    text="Usuario / Correo Institucional",
+    text="Usuario",
     font=("Segoe UI", 10, "bold"),
     bg="white",
     fg="#17304b",
@@ -199,15 +234,11 @@ entrada_usuario.pack(
     ipady=9
 )
 
-entrada_usuario.insert(
-    0,
-    "correo@proa.edu.ar"
-)
 
+# ============================================================
+# CONTRASEÑA
+# ============================================================
 
-# -----------------------------
-# Contraseña
-# -----------------------------
 tk.Label(
     login,
     text="Contraseña",
@@ -234,53 +265,15 @@ entrada_contraseña = tk.Entry(
 entrada_contraseña.pack(
     fill="x",
     padx=40,
-    pady=(7, 18),
+    pady=(7, 25),
     ipady=9
 )
 
 
-# -----------------------------
-# Rol
-# -----------------------------
-tk.Label(
-    login,
-    text="Rol / Cargo",
-    font=("Segoe UI", 10, "bold"),
-    bg="white",
-    fg="#17304b",
-    anchor="w"
-).pack(
-    fill="x",
-    padx=40
-)
+# ============================================================
+# BOTÓN INICIAR SESIÓN
+# ============================================================
 
-
-combo_rol = ttk.Combobox(
-    login,
-    font=("Segoe UI", 10),
-    state="readonly",
-    values=[
-        "Directivo/a (Dir. Ana Martínez)",
-        "Docente",
-        "Preceptor/a",
-        "Administrador/a",
-        "Estudiante"
-    ]
-)
-
-combo_rol.pack(
-    fill="x",
-    padx=40,
-    pady=(7, 25),
-    ipady=5
-)
-
-combo_rol.current(0)
-
-
-# -----------------------------
-# Botón Iniciar Sesión
-# -----------------------------
 boton_login = tk.Button(
     login,
     text="↪  Iniciar Sesión",
@@ -302,9 +295,10 @@ boton_login.pack(
 )
 
 
-# -----------------------------
-# Texto inferior
-# -----------------------------
+# ============================================================
+# TEXTO INFERIOR
+# ============================================================
+
 separador = tk.Frame(
     login,
     bg="#e5e9ef",
@@ -320,7 +314,7 @@ separador.pack(
 
 texto_inferior = tk.Label(
     login,
-    text="Acceso seguro reservado para usuarios autorizados del Programa ProA.",
+    text="Acceso seguro reservado para usuarios registrados del Programa ProA.",
     font=("Segoe UI", 8),
     bg="white",
     fg="#91a0b2",
@@ -332,16 +326,18 @@ texto_inferior.pack(
 )
 
 
-# -----------------------------
-# Enter para iniciar sesión
-# -----------------------------
+# ============================================================
+# ENTER PARA INICIAR SESIÓN
+# ============================================================
+
 ventana.bind(
     "<Return>",
     lambda evento: iniciar_sesion()
 )
 
 
-# -----------------------------
-# Ejecutar aplicación
-# -----------------------------
+# ============================================================
+# EJECUTAR APLICACIÓN
+# ============================================================
+
 ventana.mainloop()

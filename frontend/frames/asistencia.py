@@ -381,10 +381,22 @@ def crear_asistencias(parent):
         )
     )
 
-    canvas.create_window(
-        (0, 0),
-        window=frame_filas,
-        anchor="nw"
+    ventana_filas = canvas.create_window(
+    (0, 0),
+    window=frame_filas,
+    anchor="nw"
+    )
+
+# Ajustar el ancho de las filas al ancho del canvas
+    def ajustar_ancho_filas(event): 
+        canvas.itemconfigure(
+        ventana_filas,
+        width=event.width
+    )
+
+    canvas.bind(
+    "<Configure>",
+    ajustar_ancho_filas
     )
 
     canvas.configure(

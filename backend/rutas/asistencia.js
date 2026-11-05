@@ -1,213 +1,232 @@
 
 const express = require('express');
 const pool = require('../bd/conexion');
-
 const router = express.Router();
 
-
-// ===============================
+// ============================================================
 // AGREGAR UNA ASISTENCIA
-// POST /asistencias
-// ===============================
+// POST /asistencia
+// ============================================================
+
 router.post('/', async (req, res) => {
-
-    const {
-        curso,
-        fecha,
-        estado,
-        motivo_justificacion,
-        id_estudiante
-    } = req.body;
-
     try {
+        const {
+            curso,
+            fecha,
+            estado,
+            motivo_justificacion,
+            id_estudiante
+        } = req.body;
 
-        const [resultado] = await pool.execute(
-            `INSERT INTO asistencias
+        const sql = `
+            INSERT INTO asistencias
             (curso, fecha, estado, motivo_justificacion, id_estudiante)
-            VALUES (?, ?, ?, ?, ?)`,
-            [
-                curso,
-                fecha,
-                estado,
-                motivo_justificacion,
-                id_estudiante
-            ]
-        );
+            VALUES (?, ?, ?, ?, ?)
+        `;
 
-        return res.status(201).json({
+        const [resultado] = await pool.execute(sql, [
+            curso,
+            fecha,
+            estado,
+            motivo_justificacion || '',
+            id_estudiante
+        ]);
+
+        res.status(201).json({
             mensaje: 'Asistencia agregada correctamente',
             id: resultado.insertId
         });
 
     } catch (error) {
-
-        return res.status(500).json({
+        res.status(500).json({
             error: 'No se pudo agregar la asistencia',
             detalle: error.message
         });
-
     }
 });
 
 
-// ===============================
-// LEER TODAS LAS ASISTENCIAS
-// GET /asistencias
-// ===============================
+// ============================================================
+// LISTAR TODAS LAS ASISTENCIAS
+// GET /asistencia
+// ============================================================
+
 router.get('/', async (req, res) => {
-
     try {
+        const sql = `
+            SELECT *
+            FROM asistencias
+            ORDER BY fecha DESC
+        `;
 
-        const [asistencias] = await pool.execute(
-            `SELECT * FROM asistencias`
-        );
+        const [resultado] = await pool.execute(sql);
 
-        return res.status(200).json(asistencias);
+        res.json(resultado);
 
     } catch (error) {
-
-        return res.status(500).json({
+        res.status(500).json({
             error: 'No se pudieron obtener las asistencias',
             detalle: error.message
         });
-
     }
 });
 
 
-// ===============================
-// LEER UNA ASISTENCIA POR ID
-// GET /asistencias/:id
-// ===============================
+// ============================================================
+// BUSCAR UNA ASISTENCIA POR ID
+// GET /asistencia/:id
+// ============================================================
+
 router.get('/:id', async (req, res) => {
-
-    const { id } = req.params;
-
     try {
+        const { id } = req.params;
 
-        const [asistencias] = await pool.execute(
-            `SELECT * FROM asistencias
-             WHERE id_asistencia = ?`,
-            [id]
-        );
+        const sql = `
+            SELECT *
+            FROM asistencias
+            WHERE id_asistencia = ?
+        `;
 
-        if (asistencias.length === 0) {
+        const [resultado] = await pool.execute(sql, [id]);
 
+        if (resultado.length === 0) {
             return res.status(404).json({
-                error: 'Asistencia no encontrada'
+                error: 'No se encontró la asistencia'
             });
-
         }
 
-        return res.status(200).json(asistencias[0]);
+        res.json(resultado[0]);
 
     } catch (error) {
-
-        return res.status(500).json({
+        res.status(500).json({
             error: 'No se pudo obtener la asistencia',
             detalle: error.message
         });
-
     }
 });
 
 
-// ===============================
-// EDITAR UNA ASISTENCIA
-// PUT /asistencias/:id
-// ===============================
+// ============================================================
+// MODIFICAR UNA ASISTENCIA
+// PUT /asistencia/:id
+// Permite modificar solamente los campos enviados
+// ============================================================
+
 router.put('/:id', async (req, res) => {
-
-    const { id } = req.params;
-
-    const {
-        curso,
-        fecha,
-        estado,
-        motivo_justificacion,
-        id_estudiante
-    } = req.body;
-
     try {
+        const { id } = req.params;
 
-        const [resultado] = await pool.execute(
-            `UPDATE asistencias
-             SET curso = ?,
-                 fecha = ?,
-                 estado = ?,
-                 motivo_justificacion = ?,
-                 id_estudiante = ?
-             WHERE id_asistencia = ?`,
-            [
-                curso,
-                fecha,
-                estado,
-                motivo_justificacion,
-                id_estudiante,
-                id
-            ]
+        const camposPermitidos = [
+            'curso',
+            'fecha',
+            'estado',
+            'motivo_justificacion',
+            'id_estudiante'
+        ];
+
+        const campos = [];
+        const valores = [];
+
+        // Verificar que exista la asistencia
+        const [asistencia] = await pool.execute(
+            'SELECT * FROM asistencias WHERE id_asistencia = ?',
+            [id]
         );
 
-        if (resultado.affectedRows === 0) {
-
+        if (asistencia.length === 0) {
             return res.status(404).json({
-                error: 'Asistencia no encontrada'
+                error: 'No se encontró la asistencia'
             });
-
         }
 
-        return res.status(200).json({
-            mensaje: 'Asistencia actualizada correctamente'
+        // Validar el estado si se envía
+        if (req.body.estado !== undefined) {
+            const estadosPermitidos = [
+                'Presente',
+                'Tardanza',
+                'Falta',
+                'Ausente'
+            ];
+
+            if (!estadosPermitidos.includes(req.body.estado)) {
+                return res.status(400).json({
+                    error: 'El estado de asistencia no es válido'
+                });
+            }
+        }
+
+        // Construir la actualización solamente con los campos enviados
+        for (const campo of camposPermitidos) {
+            if (req.body[campo] !== undefined) {
+                campos.push(`${campo} = ?`);
+                valores.push(req.body[campo]);
+            }
+        }
+
+        if (campos.length === 0) {
+            return res.status(400).json({
+                error: 'No se enviaron datos para modificar'
+            });
+        }
+
+        valores.push(id);
+
+        const sql = `
+            UPDATE asistencias
+            SET ${campos.join(', ')}
+            WHERE id_asistencia = ?
+        `;
+
+        await pool.execute(sql, valores);
+
+        res.json({
+            mensaje: 'Asistencia modificada correctamente'
         });
 
     } catch (error) {
-
-        return res.status(500).json({
-            error: 'No se pudo actualizar la asistencia',
+        res.status(500).json({
+            error: 'No se pudo modificar la asistencia',
             detalle: error.message
         });
-
     }
 });
 
 
-// ===============================
+// ============================================================
 // ELIMINAR UNA ASISTENCIA
-// DELETE /asistencias/:id
-// ===============================
+// DELETE /asistencia/:id
+// ============================================================
+
 router.delete('/:id', async (req, res) => {
-
-    const { id } = req.params;
-
     try {
+        const { id } = req.params;
 
         const [resultado] = await pool.execute(
-            `DELETE FROM asistencias
-             WHERE id_asistencia = ?`,
+            'DELETE FROM asistencias WHERE id_asistencia = ?',
             [id]
         );
 
         if (resultado.affectedRows === 0) {
-
             return res.status(404).json({
-                error: 'Asistencia no encontrada'
+                error: 'No se encontró la asistencia'
             });
-
         }
 
-        return res.status(200).json({
+        res.json({
             mensaje: 'Asistencia eliminada correctamente'
         });
 
     } catch (error) {
-
-        return res.status(500).json({
+        res.status(500).json({
             error: 'No se pudo eliminar la asistencia',
             detalle: error.message
         });
-
     }
 });
 
+
+// ============================================================
+// EXPORTAR RUTAS
+// ============================================================
 
 module.exports = router;
